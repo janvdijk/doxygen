@@ -133,6 +133,7 @@ PageSDict       *Doxygen::pageSDict = 0;
 PageSDict       *Doxygen::exampleSDict = 0;
 SectionDict     *Doxygen::sectionDict = 0;        // all page sections
 CiteDict        *Doxygen::citeDict=0;              // database of bibliographic references
+TexRefDict      *Doxygen::texrefDict=0;            // database of external latex references
 StringDict       Doxygen::aliasDict(257);          // aliases
 QDict<void>      Doxygen::inputPaths(1009);
 FileNameDict    *Doxygen::includeNameDict = 0;     // include names
@@ -209,6 +210,7 @@ void clearAll()
   Doxygen::formulaNameDict->clear();
   Doxygen::tagDestinationDict.clear();
   delete Doxygen::citeDict;
+  delete Doxygen::texrefDict;
   delete Doxygen::mainPage; Doxygen::mainPage=0;
 }
 
@@ -10232,6 +10234,7 @@ void initDoxygen()
   Doxygen::tagDestinationDict.setAutoDelete(TRUE);
   Doxygen::dirRelations.setAutoDelete(TRUE);
   Doxygen::citeDict = new CiteDict(257);
+  Doxygen::texrefDict = new TexRefDict(1000);
   Doxygen::genericsDict = new GenericsSDict;
   Doxygen::indexList = new IndexList;
   Doxygen::formulaList = new FormulaList;
@@ -11603,6 +11606,10 @@ void parseInput()
 
   g_s.begin("Counting members...\n");
   countMembers();
+  g_s.end();
+
+  g_s.begin("Resolving texref references...\n");
+  Doxygen::texrefDict->resolveReferences();
   g_s.end();
 
   g_s.begin("Counting data structures...\n");

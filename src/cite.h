@@ -95,4 +95,51 @@ class CiteDict
     QCString m_baseFileName;
 };
 
+/// Data that describes a label of an external LaTeX document
+struct TexRefInfo
+{
+  TexRefInfo(const char *label_, const char *text_=0, const char *fullText_=0,
+      const char *ref_=0) :
+    label(label_), text(text_), ref(ref_)
+  { }
+
+  TexRefInfo(const TexRefInfo &o)
+  { label=o.label.copy(); text=o.text.copy(); ref=o.ref.copy(); }
+
+  QCString label;
+  QCString text;
+  QCString ref;
+
+};
+
+/**
+ * @brief TexRef database access class.
+ * @details This class provides access do the database of external references
+ * that are retrieved from the LaTeX .aux files that are specified in the
+ * LATEX_AUX_FILES configuration option.
+ */
+class TexRefDict
+{
+  public:
+    /** Create the database, with an expected maximum of \a size entries */
+    TexRefDict(int size);
+
+    /** Insert a citation identified by \a label into the database */
+    void insert(const char *label);
+
+    /** Return the citation info for a given \a label */
+    TexRefInfo *find(const char *label) const;
+
+    /** Generate the citations page */
+    void resolveReferences() const;
+
+    /** clears the database */
+    void clear();
+
+  private:
+    QDict<TexRefInfo> m_entries;
+};
+
+
+
 #endif

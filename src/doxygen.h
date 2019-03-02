@@ -39,6 +39,7 @@ class Store;
 class QFileInfo;
 class BufStr;
 class CiteDict;
+class TexRefDict;
 class MemberDef;
 class GroupDef;
 class GroupSDict;
@@ -142,6 +143,7 @@ class Doxygen
     static QCString                  entryDBFileName;
     static QCString                  filterDBFileName;
     static CiteDict                 *citeDict;
+    static TexRefDict               *texrefDict;
     static bool                      gatherDefines;
     static bool                      userComments;
     static IndexList                *indexList;

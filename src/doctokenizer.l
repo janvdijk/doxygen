@@ -348,6 +348,7 @@ PHPTYPE   [\\:a-z_A-Z0-9\x80-\xFF\-]+
 CITESCHAR [a-z_A-Z0-9\x80-\xFF\-\?]
 CITEECHAR [a-z_A-Z0-9\x80-\xFF\-\+:\/\?]
 CITEID    {CITESCHAR}{CITEECHAR}*("."{CITESCHAR}{CITEECHAR}*)*|"\""{CITESCHAR}{CITEECHAR}*("."{CITESCHAR}{CITEECHAR}*)*"\""
+TEXREFID  {CITESCHAR}{CITEECHAR}*("."{CITESCHAR}{CITEECHAR}*)*|"\""{CITESCHAR}{CITEECHAR}*("."{CITESCHAR}{CITEECHAR}*)*"\""
 MAILADR   ("mailto:")?[a-z_A-Z0-9.+-]+"@"[a-z_A-Z0-9-]+("."[a-z_A-Z0-9\-]+)+[a-z_A-Z0-9\-]+
 OPTSTARS  ("//"{BLANK}*)?"*"*{BLANK}*
 LISTITEM  {BLANK}*[-]("#")?{WS}
@@ -449,6 +450,7 @@ REFWORD_NOCV   {FILEMASK}|{LABELID}|{REFWORD2_NOCV}|{REFWORD3}|{REFWORD4_NOCV}
 %x St_Pattern
 %x St_Link
 %x St_Cite
+%x St_TexRef
 %x St_Ref
 %x St_Ref2
 %x St_IntRef
@@ -1033,6 +1035,10 @@ REFWORD_NOCV   {FILEMASK}|{LABELID}|{REFWORD2_NOCV}|{REFWORD3}|{REFWORD4_NOCV}
                          }
 			 return TK_WORD;
   		       }
+<St_TexRef>{TEXREFID}  { // label to refer to
+                        g_token->name=yytext;
+                        return TK_WORD;
+                       }
 <St_Cite>{BLANK}       { // white space
   			 unput(' ');
   			 return 0;
@@ -1521,6 +1527,11 @@ void doctokenizerYYsetStateLink()
 void doctokenizerYYsetStateCite()
 {
   BEGIN(St_Cite);
+}
+
+void doctokenizerYYsetStateTexRef()
+{
+  BEGIN(St_TexRef);
 }
 
 void doctokenizerYYsetStateRef()
