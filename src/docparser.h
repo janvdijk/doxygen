@@ -366,6 +366,22 @@ class DocCite : public DocNode
     QCString   m_text;
 };
 
+/** Node representing a reference to an external LaTeX document */
+class DocTexRef : public DocNode
+{
+  public:
+    DocTexRef(DocNode *parent,const QCString &target,const QCString &context);
+    Kind kind() const            { return Kind_Ref; }
+    QCString ref() const         { return m_ref; }
+    QCString text() const        { return m_text; }
+    QCString label() const       { return m_label; }
+    void accept(DocVisitor *v) { v->visit(this); }
+
+  private:
+    QCString   m_ref;
+    QCString   m_text;
+    QCString   m_label;
+};
 
 /** Node representing a style change */
 class DocStyleChange : public DocNode
@@ -1203,6 +1219,7 @@ class DocPara : public CompAccept<DocPara>
     void handleLink(const QCString &cmdName,bool isJavaLink);
     void handleCite();
     void handleEmoji();
+    void handleTexRef();
     void handleRef(const QCString &cmdName);
     void handleSection(const QCString &cmdName);
     void handleInheritDoc();

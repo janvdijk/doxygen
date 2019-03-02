@@ -240,6 +240,14 @@ class PrintDocVisitor : public DocVisitor
              cite->ref().data(),cite->file().data(),cite->anchor().data(),
              cite->text().data());
     }
+    void visit(DocTexRef *texref)
+    {
+      indent_leaf();
+      printf("<texref ref=\"%s\" text=\"%s\" />\n",
+             texref->ref().data(),
+             texref->text().data());
+    }
+
 
     //--------------------------------------
     

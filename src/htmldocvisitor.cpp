@@ -884,6 +884,12 @@ void HtmlDocVisitor::visit(DocCite *cite)
   }
 }
 
+void HtmlDocVisitor::visit(DocTexRef *texref)
+{
+  if (m_hide) return;
+  //m_t << "TEXREF: ";
+  filter(texref->text());
+}
 
 //--------------------------------------
 // visitor functions for compound nodes

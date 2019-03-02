@@ -2709,6 +2709,42 @@ DocCite::DocCite(DocNode *parent,const QCString &target,const QCString &) //cont
 
 //---------------------------------------------------------------------------
 
+DocTexRef::DocTexRef(DocNode *parent,const QCString &target,const QCString &) //context)
+{
+  static uint numAuxFiles = Config_getList(LATEX_AUX_FILES).count();
+  m_parent = parent;
+  //printf("DocTexRef::DocTexRef(target=%s)\n",target.data());
+  ASSERT(!target.isEmpty());
+  TexRefInfo *texref = Doxygen::texrefDict->find(target);
+  //printf("texref=%p text='%s' numAuxFiles=%d\n",texref,texref?texref->text.data():"<null>",numAuxFiles);
+  if (numAuxFiles>0 && texref && !texref->text.isEmpty())
+  {
+    m_text         = texref->text;
+    m_ref          = texref->ref;
+    m_label        = texref->label;
+    //printf("TEXREF ==> m_label=%s,m_text=%s,m_ref=%s\n",
+    //    m_label.data(),m_text.data(),m_ref.data());
+    return;
+  }
+  m_text = target;
+  if (numAuxFiles==0)
+  {
+    warn_doc_error(g_fileName,doctokenizerYYlineno,"\\texref command found but no aux files specified via LATEX_AUX_FILES!");
+  }
+  else if (texref==0)
+  {
+    warn_doc_error(g_fileName,doctokenizerYYlineno,"unable to resolve reference to `%s' for \\texref command",
+             qPrint(target));
+  }
+  else
+  {
+    warn_doc_error(g_fileName,doctokenizerYYlineno,"\\texref command to '%s' does not have an associated number",
+             qPrint(target));
+  }
+}
+
+//---------------------------------------------------------------------------
+
 DocLink::DocLink(DocNode *parent,const QCString &target) 
 {
   m_parent = parent;
@@ -5000,6 +5036,39 @@ void DocPara::handleEmoji()
   doctokenizerYYsetStatePara();
 }
 
+void DocPara::handleTexRef()
+{
+  // get the argument of the texref command.
+  int tok=doctokenizerYYlex();
+  if (tok!=TK_WHITESPACE)
+  {
+    warn_doc_error(g_fileName,doctokenizerYYlineno,"expected whitespace after %s command",
+        qPrint("texref"));
+    return;
+  }
+  doctokenizerYYsetStateTexRef();
+  tok=doctokenizerYYlex();
+  if (tok==0)
+  {
+    warn_doc_error(g_fileName,doctokenizerYYlineno,"unexpected end of comment block while parsing the "
+        "argument of command %s\n", qPrint("texref"));
+    return;
+  }
+  else if (tok!=TK_WORD && tok!=TK_LNKWORD)
+  {
+    warn_doc_error(g_fileName,doctokenizerYYlineno,"unexpected token %s as the argument of %s",
+        tokToString(tok),qPrint("texref"));
+    return;
+  }
+  g_token->sectionId = g_token->name;
+  DocTexRef *texref = new DocTexRef(this,g_token->name,g_context);
+  m_children.append(texref);
+  //cite->parse();
+
+  doctokenizerYYsetStatePara();
+}
+
+
 int DocPara::handleXRefItem()
 {
   int retval=doctokenizerYYlex();
@@ -5889,6 +5958,9 @@ int DocPara::handleCommand(const QCString &cmdName, const int tok)
       break;
     case CMD_EMOJI:
       handleEmoji();
+      break;
+    case CMD_TEXREF:
+      handleTexRef();
       break;
     case CMD_REF: // fall through
     case CMD_SUBPAGE:

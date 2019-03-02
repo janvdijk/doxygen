@@ -92,6 +92,7 @@ static bool handleRefItem(const QCString &, const QCStringList &);
 static bool handleSection(const QCString &, const QCStringList &);
 static bool handleAnchor(const QCString &, const QCStringList &);
 static bool handleCite(const QCString &, const QCStringList &);
+static bool handleTexRef(const QCString &, const QCStringList &);
 static bool handleFormatBlock(const QCString &, const QCStringList &);
 static bool handleAddIndex(const QCString &, const QCStringList &);
 static bool handleIf(const QCString &, const QCStringList &);
@@ -187,6 +188,7 @@ static DocCmdMap docCmdMap[] =
   { "endparblock",     &handleEndParBlock,      TRUE  },
   { "refitem",         &handleRefItem,          TRUE  },
   { "cite",            &handleCite,             FALSE },
+  { "texref",          &handleTexRef,           FALSE },
   { "subpage",         &handleSubpage,          TRUE  },
   { "section",         &handleSection,          TRUE  },
   { "subsection",      &handleSection,          TRUE  },
@@ -709,6 +711,13 @@ static void addCite()
 
 //-----------------------------------------------------------------------------
 
+static void addTexRef()
+{
+  Doxygen::texrefDict->insert(yytext);
+}
+
+//-----------------------------------------------------------------------------
+
 // strip trailing whitespace (excluding newlines) from string s
 static void stripTrailingWhiteSpace(QCString &s)
 {
@@ -956,6 +965,7 @@ LABELID   [a-z_A-Z\x80-\xFF][a-z_A-Z0-9\x80-\xFF\-]*
 CITESCHAR [a-z_A-Z0-9\x80-\xFF\-\?]
 CITEECHAR [a-z_A-Z0-9\x80-\xFF\-\+:\/\?]*
 CITEID    {CITESCHAR}{CITEECHAR}*("."{CITESCHAR}{CITEECHAR}*)*|"\""{CITESCHAR}{CITEECHAR}*("."{CITESCHAR}{CITEECHAR}*)*"\""
+TEXREFID  {CITESCHAR}{CITEECHAR}*("."{CITESCHAR}{CITEECHAR}*)*|"\""{CITESCHAR}{CITEECHAR}*("."{CITESCHAR}{CITEECHAR}*)*"\""
 SCOPEID   {ID}({ID}*{BN}*"::"{BN}*)*({ID}?)
 SCOPENAME "$"?(({ID}?{BN}*("::"|"."){BN}*)*)((~{BN}*)?{ID})
 TMPLSPEC  "<"{BN}*[^>]+{BN}*">"
@@ -1005,6 +1015,7 @@ RCSTAG    "$"{ID}":"[^\n$]+"$"
 %x      HtmlComment
 %x      SkipLang
 %x	CiteLabel
+%x	TexRefLabel
 %x	CopyDoc
 %x      GuardExpr
 %x      CdataSection
@@ -2291,6 +2302,29 @@ RCSTAG    "$"{ID}":"[^\n$]+"$"
 					  BEGIN(Comment);
   					}
 
+  /* ----- handle arguments of the texref command ------- */
+
+<TexRefLabel>{TEXREFID}                        { // found argyment
+                                         addTexRef();
+                                         addOutput(yytext);
+                                         BEGIN(Comment);
+                                       }
+<TexRefLabel>{DOCNL}                   { // missing argument
+                                         warn(yyFileName,yyLineNr,
+                                             "\\texref command has no label"
+                                             );
+                                         if (*yytext=='\n') yyLineNr++;
+                                         addOutput('\n');
+                                         BEGIN( Comment );
+                                       }
+<TexRefLabel>.                         { // invalid character for texref label
+                                         warn(yyFileName,yyLineNr,
+                                             "Invalid or missing texref label"
+                                             );
+                                         BEGIN(Comment);
+                                       }
+
+
   /* ----- handle argument of the copydoc command ------- */
 
 <CopyDoc><<EOF>>			|
@@ -2710,6 +2744,18 @@ static bool handleCite(const QCString &s, const QCStringList &)
   }
   addOutput("@"+s+" ");
   BEGIN(CiteLabel);
+  return FALSE;
+}
+
+static bool handleTexRef(const QCString &s, const QCStringList &)
+{
+  if (!g_spaceBeforeCmd.isEmpty())
+  {
+    addOutput(g_spaceBeforeCmd);
+    g_spaceBeforeCmd.resize(0);
+  }
+  addOutput("@"+s+" ");
+  BEGIN(TexRefLabel);
   return FALSE;
 }
 

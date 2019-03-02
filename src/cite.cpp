@@ -345,3 +345,88 @@ void CiteDict::generatePage() const
   thisDir.rmdir(bibOutputDir);
 }
 
+TexRefDict::TexRefDict(int size) : m_entries(size, FALSE)
+{
+  m_entries.setAutoDelete(TRUE);
+}
+
+void TexRefDict::insert(const char *label)
+{
+  m_entries.insert(label,new TexRefInfo(label));
+}
+
+TexRefInfo *TexRefDict::find(const char *label) const
+{
+  return label ? m_entries.find(label) : 0;
+}
+
+void TexRefDict::clear()
+{
+  m_entries.clear();
+}
+
+void TexRefDict::resolveReferences() const
+{
+  if (m_entries.isEmpty()) return; // nothing to resolve
+
+  QStrList &texrefDataList = Config_getList(LATEX_AUX_FILES);
+  const char *texrefdata = texrefDataList.first();
+  int i = 0;
+  while (texrefdata)
+  {
+    QCString texrefFile = texrefdata;
+    if (!texrefFile.isEmpty() && texrefFile.right(4)!=".aux") texrefFile+=".aux";
+    QFileInfo fi(texrefFile);
+    if (fi.exists())
+    {
+      if (!texrefFile.isEmpty())
+      {
+        ++i;
+        printf("Reading file %s\n", texrefdata);
+        QFile f;
+        f.setName(texrefFile);
+        if (!f.open(IO_ReadOnly))
+        {
+          err("could not open file %s for reading\n",texrefFile.data());
+        }
+        QCString input(fi.size()+1);
+        f.readBlock(input.rawData(),fi.size());
+        f.close();
+        input.at(fi.size())='\0';
+        int p=0,s;
+        //printf("input=[%s]\n",input.data());
+        while ((s=input.find('\n',p))!=-1)
+        {
+          QCString line = input.mid(p,s-p);
+          //printf("p=%d s=%d line=[%s]\n",p,s,line.data());
+          p=s+1;
+
+          if (line.find("\\newlabel")!=0)
+          {
+            continue;
+          }
+          printf("handling: %s\n",line.data());
+          int j=line.find("}{");
+          int k=line.find("}",j+1);
+          if (j!=-1 && k!=-1)
+          {
+            QCString label = line.mid(10,j-10);
+            QCString text = line.mid(j+3,k-(j+3));
+            TexRefInfo *ci = m_entries.find(label);
+            printf("label='%s' number='%s'\n",label.data(),text.data(),ci);
+            if (ci)
+            {
+              ci->text = text;
+            }
+          }
+        }
+      }
+    }
+    else
+    {
+      err("file %s not found!\n",texrefFile.data());
+    }
+    texrefdata = texrefDataList.next();
+  }
+}
+

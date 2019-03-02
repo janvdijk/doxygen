@@ -151,6 +151,7 @@ void doctokenizerYYsetStateFile();
 void doctokenizerYYsetStatePattern();
 void doctokenizerYYsetStateLink();
 void doctokenizerYYsetStateCite();
+void doctokenizerYYsetStateTexRef();
 void doctokenizerYYsetStateRef();
 void doctokenizerYYsetStateInternalRef();
 void doctokenizerYYsetStateText();

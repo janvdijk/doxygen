@@ -1,0 +1,25 @@
+* The doxy file is the default one, except for the
+  follwing:
+
+CITE_BIB_FILES         = math_overview
+LATEX_AUX_FILES        = math_overview
+
+* By running the modified doxygen from withing this directory,
+the \extref and \cite annotations in polar.h will be translated
+using the math_overview.aux 'dictionary'.
+
+IN THE CODE:
+
+        /** \note This uses the Euler relation, see equation
+         *        \texref eqn:euler in section \texref sec:euler
+         *        in \cite MathOverview.
+         */
+
+IN THE HTML OUTPUT:
+
+    get_cartesian():
+
+    This uses the Euler relation, see equation 3 in section 2 in [1].
+
+
+(Note that other output targets have not yet been updated.)
