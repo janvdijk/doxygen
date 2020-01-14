@@ -136,10 +136,13 @@ void ManDocVisitor::visit(DocStyleChange *s)
       if (s->enable()) m_t << "\\fB";      else m_t << "\\fP";
       m_firstCol=FALSE;
       break;
+    case DocStyleChange::S:
     case DocStyleChange::Strike:
+    case DocStyleChange::Del:
       /* not supported */
       break;
     case DocStyleChange::Underline: //underline is shown as emphasis
+    case DocStyleChange::Ins:
       if (s->enable()) m_t << "\\fI";     else m_t << "\\fP";
       m_firstCol=FALSE;
       break;
@@ -202,8 +205,8 @@ void ManDocVisitor::visit(DocVerbatim *s)
       if (!m_firstCol) m_t << endl;
       m_t << ".PP" << endl;
       m_t << ".nf" << endl;
-      Doxygen::parserManager->getParser(lang)
-                            ->parseCode(m_ci,s->context(),s->text(),
+      Doxygen::parserManager->getCodeParser(lang)
+                             .parseCode(m_ci,s->context(),s->text(),
                                         langExt,
                                         s->isExample(),s->exampleFile());
       if (!m_firstCol) m_t << endl;
@@ -255,8 +258,8 @@ void ManDocVisitor::visit(DocInclude *inc)
          m_t << ".nf" << endl;
          QFileInfo cfi( inc->file() );
          FileDef *fd = createFileDef( cfi.dirPath().utf8(), cfi.fileName().utf8() );
-         Doxygen::parserManager->getParser(inc->extension())
-                               ->parseCode(m_ci,inc->context(),
+         Doxygen::parserManager->getCodeParser(inc->extension())
+                                .parseCode(m_ci,inc->context(),
                                            inc->text(),
                                            langExt,
                                            inc->isExample(),
@@ -279,8 +282,8 @@ void ManDocVisitor::visit(DocInclude *inc)
       if (!m_firstCol) m_t << endl;
       m_t << ".PP" << endl;
       m_t << ".nf" << endl;
-      Doxygen::parserManager->getParser(inc->extension())
-                            ->parseCode(m_ci,inc->context(),
+      Doxygen::parserManager->getCodeParser(inc->extension())
+                             .parseCode(m_ci,inc->context(),
                                         inc->text(),
                                         langExt,
                                         inc->isExample(),
@@ -301,6 +304,12 @@ void ManDocVisitor::visit(DocInclude *inc)
     case DocInclude::DontIncWithLines:
     case DocInclude::HtmlInclude:
     case DocInclude::LatexInclude:
+    case DocInclude::RtfInclude:
+    case DocInclude::XmlInclude:
+    case DocInclude::DocbookInclude:
+      break;
+    case DocInclude::ManInclude:
+      m_t << inc->text();
       break;
     case DocInclude::VerbInclude: 
       if (!m_firstCol) m_t << endl;
@@ -316,8 +325,8 @@ void ManDocVisitor::visit(DocInclude *inc)
       if (!m_firstCol) m_t << endl;
       m_t << ".PP" << endl;
       m_t << ".nf" << endl;
-      Doxygen::parserManager->getParser(inc->extension())
-                            ->parseCode(m_ci,
+      Doxygen::parserManager->getCodeParser(inc->extension())
+                             .parseCode(m_ci,
                                         inc->context(),
                                         extractBlock(inc->text(),inc->blockId()),
                                         langExt,
@@ -336,8 +345,8 @@ void ManDocVisitor::visit(DocInclude *inc)
          m_t << ".nf" << endl;
          QFileInfo cfi( inc->file() );
          FileDef *fd = createFileDef( cfi.dirPath().utf8(), cfi.fileName().utf8() );
-         Doxygen::parserManager->getParser(inc->extension())
-                               ->parseCode(m_ci,
+         Doxygen::parserManager->getCodeParser(inc->extension())
+                                .parseCode(m_ci,
                                            inc->context(),
                                            extractBlock(inc->text(),inc->blockId()),
                                            langExt,
@@ -370,7 +379,7 @@ void ManDocVisitor::visit(DocIncOperator *op)
   QCString locLangExt = getFileNameExtension(op->includeFileName());
   if (locLangExt.isEmpty()) locLangExt = m_langExt;
   SrcLangExt langExt = getLanguageFromFileName(locLangExt);
-  //printf("DocIncOperator: type=%d first=%d, last=%d text=`%s'\n",
+  //printf("DocIncOperator: type=%d first=%d, last=%d text='%s'\n",
   //    op->type(),op->isFirst(),op->isLast(),op->text().data());
   if (op->isFirst()) 
   {
@@ -388,15 +397,15 @@ void ManDocVisitor::visit(DocIncOperator *op)
     popEnabled();
     if (!m_hide) 
     {
-      FileDef *fd;
+      FileDef *fd = 0;
       if (!op->includeFileName().isEmpty())
       {
         QFileInfo cfi( op->includeFileName() );
         fd = createFileDef( cfi.dirPath().utf8(), cfi.fileName().utf8() );
       }
 
-      Doxygen::parserManager->getParser(locLangExt)
-                            ->parseCode(m_ci,op->context(),op->text(),langExt,
+      Doxygen::parserManager->getCodeParser(locLangExt)
+                             .parseCode(m_ci,op->context(),op->text(),langExt,
                                         op->isExample(),op->exampleFile(),
                                         fd,     // fileDef
                                         op->line(),    // startLine
@@ -571,7 +580,7 @@ void ManDocVisitor::visitPre(DocSimpleSect *s)
   // special case 1: user defined title
   if (s->type()!=DocSimpleSect::User && s->type()!=DocSimpleSect::Rcs)
   {
-    m_t << ":\\fP" << endl;
+    m_t << "\\fP" << endl;
     m_t << ".RS 4" << endl;
   }
 }
@@ -903,25 +912,6 @@ void ManDocVisitor::visitPost(DocSecRefList *)
   m_t << ".PP" << endl;
 }
 
-//void ManDocVisitor::visitPre(DocLanguage *l)
-//{
-//  QString langId = Config_getEnum(OUTPUT_LANGUAGE);
-//  if (l->id().lower()!=langId.lower())
-//  {
-//    pushEnabled();
-//    m_hide = TRUE;
-//  }
-//}
-//
-//void ManDocVisitor::visitPost(DocLanguage *l) 
-//{
-//  QString langId = Config_getEnum(OUTPUT_LANGUAGE);
-//  if (l->id().lower()!=langId.lower())
-//  {
-//    popEnabled();
-//  }
-//}
-
 void ManDocVisitor::visitPre(DocParamSect *s)
 {
   if (m_hide) return;
@@ -944,7 +934,7 @@ void ManDocVisitor::visitPre(DocParamSect *s)
     default:
       ASSERT(0);
   }
-  m_t << ":\\fP" << endl;
+  m_t << "\\fP" << endl;
   m_t << ".RS 4" << endl;
 }
 
@@ -1026,14 +1016,6 @@ void ManDocVisitor::visitPost(DocInternalRef *)
 {
   if (m_hide) return;
   m_t << "\\fP";
-}
-
-void ManDocVisitor::visitPre(DocCopy *)
-{
-}
-
-void ManDocVisitor::visitPost(DocCopy *)
-{
 }
 
 void ManDocVisitor::visitPre(DocText *)

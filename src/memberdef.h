@@ -18,6 +18,8 @@
 #ifndef MEMBERDEF_H
 #define MEMBERDEF_H
 
+#include <vector>
+
 #include <qlist.h>
 #include <sys/types.h>
 
@@ -50,7 +52,7 @@ class MemberDef : virtual public Definition
 
     virtual MemberDef *resolveAlias() = 0;
     virtual const MemberDef *resolveAlias() const = 0;
-    
+
     //-----------------------------------------------------------------------------------
     // ----  getters -----
     //-----------------------------------------------------------------------------------
@@ -70,7 +72,7 @@ class MemberDef : virtual public Definition
     virtual const QCString &initializer() const = 0;
     virtual int initializerLines() const = 0;
     virtual uint64 getMemberSpecifiers() const = 0;
-    virtual const MemberList *getSectionList(const Definition *d) const = 0;
+    virtual const MemberList *getSectionList() const = 0;
     virtual QCString    displayDefinition() const = 0;
 
     // scope query members
@@ -182,6 +184,7 @@ class MemberDef : virtual public Definition
     virtual bool livesInsideEnum() const = 0;
     virtual bool isSliceLocal() const = 0;
     virtual bool isConstExpr() const = 0;
+    virtual int  numberOfFlowKeyWords() const = 0;
 
     // derived getters
     virtual bool isFriendToHide() const = 0;
@@ -220,11 +223,11 @@ class MemberDef : virtual public Definition
     virtual bool isPrototype() const = 0;
 
     // argument related members
-    virtual const ArgumentList *argumentList() const = 0;
-    virtual ArgumentList *argumentList() = 0;
-    virtual const ArgumentList *declArgumentList() const = 0;
-    virtual const ArgumentList *templateArguments() const = 0;
-    virtual const QList<ArgumentList> *definitionTemplateParameterLists() const = 0;
+    virtual const ArgumentList &argumentList() const = 0;
+    virtual ArgumentList &argumentList() = 0;
+    virtual const ArgumentList &declArgumentList() const = 0;
+    virtual const ArgumentList &templateArguments() const = 0;
+    virtual const std::vector<ArgumentList> &definitionTemplateParameterLists() const = 0;
 
     // member group related members
     virtual int getMemberGroupId() const = 0;
@@ -238,7 +241,7 @@ class MemberDef : virtual public Definition
     virtual bool hasCallGraph() const = 0;
     virtual bool hasCallerGraph() const = 0;
     virtual bool visibleMemberGroup(bool hideNoHeader) const = 0;
-    // refrenced related members
+    // referenced related members
     virtual bool hasReferencesRelation() const = 0;
     virtual bool hasReferencedByRelation() const = 0;
 
@@ -248,7 +251,7 @@ class MemberDef : virtual public Definition
 
     // cached typedef functions
     virtual bool isTypedefValCached() const = 0;
-    virtual ClassDef *getCachedTypedefVal() const = 0;
+    virtual const ClassDef *getCachedTypedefVal() const = 0;
     virtual QCString getCachedTypedefTemplSpec() const = 0;
     virtual QCString getCachedResolvedTypedef() const = 0;
 
@@ -264,7 +267,7 @@ class MemberDef : virtual public Definition
     virtual QCString getDeclType() const = 0;
     virtual void getLabels(QStrList &sl,const Definition *container) const = 0;
 
-    virtual const ArgumentList *typeConstraints() const = 0;
+    virtual const ArgumentList &typeConstraints() const = 0;
 
     // overrules
     virtual QCString documentation() const = 0;
@@ -280,6 +283,7 @@ class MemberDef : virtual public Definition
     // ----  setters -----
     //-----------------------------------------------------------------------------------
 
+
     // set functions
     virtual void setMemberType(MemberType t) = 0;
     virtual void setDefinition(const char *d) = 0;
@@ -292,19 +296,20 @@ class MemberDef : virtual public Definition
     virtual void setBitfields(const char *s) = 0;
     virtual void setMaxInitLines(int lines) = 0;
     virtual void setMemberClass(ClassDef *cd) = 0;
-    virtual void setSectionList(Definition *d,MemberList *sl) = 0;
+    virtual void setSectionList(MemberList *sl) = 0;
     virtual void setGroupDef(GroupDef *gd,Grouping::GroupPri_t pri,
                      const QCString &fileName,int startLine,bool hasDocs,
                      MemberDef *member=0) = 0;
     virtual void setReadAccessor(const char *r) = 0;
     virtual void setWriteAccessor(const char *w) = 0;
     virtual void setTemplateSpecialization(bool b) = 0;
-    
+
     virtual void makeRelated() = 0;
     virtual void makeForeign() = 0;
     virtual void setInheritsDocsFrom(MemberDef *md) = 0;
-    virtual void setTagInfo(TagInfo *i) = 0;
+    virtual void setTagInfo(const TagInfo *i) = 0;
     virtual void setArgsString(const char *as) = 0;
+    virtual void incrementFlowKeyWordCount() = 0;
 
     // relation to other members
     virtual void setReimplements(MemberDef *md) = 0;
@@ -328,10 +333,10 @@ class MemberDef : virtual public Definition
     virtual void setDeclFile(const QCString &df,int line,int column) = 0;
 
     // argument related members
-    virtual void setArgumentList(ArgumentList *al) = 0;
-    virtual void setDeclArgumentList(ArgumentList *al) = 0;
-    virtual void setDefinitionTemplateParameterLists(QList<ArgumentList> *lists) = 0;
-    virtual void setTypeConstraints(ArgumentList *al) = 0;
+    virtual void setArgumentList(const ArgumentList &al) = 0;
+    virtual void setDeclArgumentList(const ArgumentList &al) = 0;
+    virtual void setDefinitionTemplateParameterLists(const std::vector<ArgumentList> &lists) = 0;
+    virtual void setTypeConstraints(const ArgumentList &al) = 0;
     virtual void setType(const char *t) = 0;
     virtual void setAccessorType(ClassDef *cd,const char *t) = 0;
 
@@ -357,7 +362,7 @@ class MemberDef : virtual public Definition
     virtual void setDocsForDefinition(bool b) = 0;
     virtual void setGroupAlias(const MemberDef *md) = 0;
 
-    virtual void cacheTypedefVal(ClassDef *val,const QCString &templSpec,const QCString &resolvedType) = 0;
+    virtual void cacheTypedefVal(const ClassDef *val,const QCString &templSpec,const QCString &resolvedType) = 0;
     virtual void invalidateTypedefValCache() = 0;
 
     virtual void invalidateCachedArgumentTypes() = 0;
@@ -381,8 +386,8 @@ class MemberDef : virtual public Definition
     // --- actions ----
     //-----------------------------------------------------------------------------------
 
-    virtual MemberDef *createTemplateInstanceMember(ArgumentList *formalArgs,
-               ArgumentList *actualArgs) const = 0;
+    virtual MemberDef *createTemplateInstanceMember(const ArgumentList &formalArgs,
+               const ArgumentList &actualArgs) const = 0;
     virtual void findSectionsInDocumentation() = 0;
     virtual void addToSearchIndex() const = 0;
 
@@ -418,8 +423,8 @@ class MemberDef : virtual public Definition
 MemberDef *createMemberDef(const char *defFileName,int defLine,int defColumn,
               const char *type,const char *name,const char *args,
               const char *excp,Protection prot,Specifier virt,bool stat,
-              Relationship related,MemberType t,const ArgumentList *tal,
-              const ArgumentList *al,const char *metaData);
+              Relationship related,MemberType t,const ArgumentList &tal,
+              const ArgumentList &al,const char *metaData);
 
 MemberDef *createMemberDefAlias(const Definition *newScope,const MemberDef *aliasMd);
 

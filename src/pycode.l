@@ -97,6 +97,7 @@ static bool          g_endComment;
 
 static void endFontClass();
 static void adjustScopesAndSuites(unsigned indentLength);
+static const char *stateToString(int state);
 
 
 /*! Represents a stack of variable to class mappings as found in the
@@ -162,7 +163,7 @@ void PyVariableContext::addVariable(const QCString &type,const QCString &name)
   QCString lname = name.simplifyWhiteSpace();
 
   Scope *scope = m_scopes.count()==0 ? &m_globalScope : m_scopes.getLast();
-  ClassDef *varType;
+  const ClassDef *varType;
   if (
       (varType=g_codeClassSDict[ltype]) ||  // look for class definitions inside the code block
       (varType=getResolvedClass(g_currentDefinition,g_sourceFileDef,ltype)) // look for global class definitions
@@ -212,7 +213,7 @@ class PyCallContext
       Ctx() : name(g_name), type(g_type), cd(0) {}
       QCString name;
       QCString type;
-      ClassDef *cd;
+      const ClassDef *cd;
     };
 
     PyCallContext() 
@@ -223,7 +224,7 @@ class PyCallContext
 
     virtual ~PyCallContext() {}
 
-    void setClass(ClassDef *cd)
+    void setClass(const ClassDef *cd)
     {
       Ctx *ctx = m_classList.getLast();
       if (ctx) 
@@ -259,7 +260,7 @@ class PyCallContext
       m_classList.append(new Ctx);
     }
 
-    ClassDef *getClass() const
+    const ClassDef *getClass() const
     {
       Ctx *ctx = m_classList.getLast();
 
@@ -320,7 +321,7 @@ static void addToSearchIndex(const char *text)
 }
 
 
-static ClassDef *stripClassName(const char *s,Definition *d=g_currentDefinition)
+static const ClassDef *stripClassName(const char *s,Definition *d=g_currentDefinition)
 {
   int pos=0;
   QCString type = s;
@@ -330,7 +331,7 @@ static ClassDef *stripClassName(const char *s,Definition *d=g_currentDefinition)
   {
     QCString clName=className+templSpec;
 
-    ClassDef *cd=0;
+    const ClassDef *cd=0;
     if (!g_classScope.isEmpty())
     {
       cd=getResolvedClass(d,g_sourceFileDef,g_classScope+"::"+clName);
@@ -376,7 +377,7 @@ static void startCodeLine()
       g_searchingForBody = TRUE;
       g_realScope = d->name().copy();
       g_classScope = d->name().copy();
-      //printf("Real scope: `%s'\n",g_realScope.data());
+      //printf("Real scope: '%s'\n",g_realScope.data());
       g_bodyCurlyCount = 0;
       QCString lineAnchor;
       lineAnchor.sprintf("l%05d",g_yyLineNr);
@@ -549,7 +550,7 @@ static bool getLinkInScope(const QCString &c,  // scope
   const FileDef      *fd = 0;
   const NamespaceDef *nd = 0;
   const GroupDef     *gd = 0;
-  //printf("Trying `%s'::`%s'\n",c.data(),m.data());
+  //printf("Trying '%s'::'%s'\n",c.data(),m.data());
   if (getDefs(c,m,"()",md,cd,fd,nd,gd,FALSE,g_sourceFileDef) && 
       md->isLinkable())
   {
@@ -571,7 +572,7 @@ static bool getLinkInScope(const QCString &c,  // scope
       {
 	addDocCrossReference(g_currentMemberDef,const_cast<MemberDef*>(md));
       }
-      //printf("d->getReference()=`%s' d->getOutputBase()=`%s' name=`%s' member name=`%s'\n",d->getReference().data(),d->getOutputFileBase().data(),d->name().data(),md->name().data());
+      //printf("d->getReference()='%s' d->getOutputBase()='%s' name='%s' member name='%s'\n",d->getReference().data(),d->getOutputFileBase().data(),d->name().data(),md->name().data());
      
       writeMultiLineCodeLink(ol,md, text ? text : memberText);
       addToSearchIndex(text ? text : memberText);
@@ -616,8 +617,8 @@ static void generateClassOrGlobalLink(CodeOutputInterface &ol,char *clName,
 
   DBG_CTX((stderr,"generateClassOrGlobalLink(className=%s)\n",className.data()));
 
-  ClassDef *cd=0,*lcd=0;  /** Class def that we may find */
-  MemberDef *md=0;        /** Member def that we may find */
+  const ClassDef *cd=0,*lcd=0;  /** Class def that we may find */
+  const MemberDef *md=0;        /** Member def that we may find */
   //bool isLocal=FALSE;
 
   if ((lcd=g_theVarContext.findVariable(className))==0) // not a local variable
@@ -669,7 +670,7 @@ static void generateClassOrGlobalLink(CodeOutputInterface &ol,char *clName,
       if (d && d->isLinkable() && md->isLinkable() && 
           g_currentMemberDef && g_collectXRefs)
       {
-        addDocCrossReference(g_currentMemberDef,md);
+        addDocCrossReference(g_currentMemberDef,const_cast<MemberDef*>(md));
       }
     }
   }
@@ -753,7 +754,7 @@ static void generateFunctionLink(CodeOutputInterface &ol,char *funcName)
     locScope=locFunc.left(i);
     locFunc=locFunc.right(locFunc.length()-i-2).stripWhiteSpace();
   }
-  //printf("generateFunctionLink(%s) classScope=`%s'\n",locFunc.data(),locScope.data());
+  //printf("generateFunctionLink(%s) classScope='%s'\n",locFunc.data(),locScope.data());
   if (!locScope.isEmpty() && (ccd=g_codeClassSDict[locScope]))
   {
     //printf("using classScope %s\n",g_classScope.data());
@@ -1091,7 +1092,7 @@ TARGET           ({IDENTIFIER}|"("{TARGET_LIST}")"|"["{TARGET_LIST}"]"|{ATTRIBUT
                                       char *s=g_curClassBases.first();
                                       while (s) 
 				      {
-                                        ClassDef *baseDefToAdd=g_codeClassSDict[s];
+                                        const ClassDef *baseDefToAdd=g_codeClassSDict[s];
 
 					// Try to find class in global
 					// scope
@@ -1102,7 +1103,7 @@ TARGET           ({IDENTIFIER}|"("{TARGET_LIST}")"|"["{TARGET_LIST}"]"|{ATTRIBUT
 
 					if (baseDefToAdd && baseDefToAdd!=classDefToAdd) 
 					{
-				          classDefToAdd->insertBaseClass(baseDefToAdd,s,Public,Normal);
+				          classDefToAdd->insertBaseClass(const_cast<ClassDef*>(baseDefToAdd),s,Public,Normal);
 					}
 
                                         s=g_curClassBases.next();
@@ -1173,6 +1174,10 @@ TARGET           ({IDENTIFIER}|"("{TARGET_LIST}")"|"["{TARGET_LIST}"]"|{ATTRIBUT
                                }
 
     {FLOWKW}                   {
+                                 if (g_currentMemberDef && g_currentMemberDef->isFunction())
+                                 {
+                                   g_currentMemberDef->incrementFlowKeyWordCount();
+                                 }
   		                 startFontClass("keywordflow");
   		                 codify(yytext);
 		                 endFontClass();
@@ -1210,6 +1215,10 @@ TARGET           ({IDENTIFIER}|"("{TARGET_LIST}")"|"["{TARGET_LIST}"]"|{ATTRIBUT
                                        }
 
     {FLOWKW}                           {
+                                          if (g_currentMemberDef && g_currentMemberDef->isFunction())
+                                          {
+                                            g_currentMemberDef->incrementFlowKeyWordCount();
+                                          }
                                           startFontClass("keywordflow");
 					  codifyLines(yytext);
 		                          endFontClass();
@@ -1267,7 +1276,7 @@ TARGET           ({IDENTIFIER}|"("{TARGET_LIST}")"|"["{TARGET_LIST}"]"|{ATTRIBUT
 
     {BB}/({NONEMPTY}|{EXPCHAR}) {
                                  // This implements poor
-				 // indendation-tracking;
+				 // indentation-tracking;
                                  // should be improved.
 				 // (translate tabs to space, etc)
   		                 codifyLines(yytext);
@@ -1307,7 +1316,7 @@ TARGET           ({IDENTIFIER}|"("{TARGET_LIST}")"|"["{TARGET_LIST}"]"|{ATTRIBUT
     \\{B}\n                    { // line continuation
   		                 codifyLines(yytext);
                                }
-    \\.			       { // espaced char
+    \\.			       { // escaped char
   		                 codify(yytext);
                                }
     {STRINGPREFIX}?{TRIDOUBLEQUOTE} { // triple double quotes
@@ -1330,7 +1339,7 @@ TARGET           ({IDENTIFIER}|"("{TARGET_LIST}")"|"["{TARGET_LIST}"]"|{ATTRIBUT
     \\{B}\n                    { // line continuation
   		                 codifyLines(yytext);
                                }
-    \\.			       { // espaced char
+    \\.			       { // escaped char
   		                 codify(yytext);
                                }
     {STRINGPREFIX}?{TRISINGLEQUOTE} { // triple single quotes
@@ -1629,12 +1638,33 @@ void parsePythonCode(CodeOutputInterface &od,const char * /*className*/,
   return;
 }
 
+//----------------------------------------------------------------------------
 
-#if !defined(YY_FLEX_SUBMINOR_VERSION) 
-extern "C" { // some bogus code to keep the compiler happy
-  void pycodeYYdummy() { yy_flex_realloc(0,0); } 
+void PythonCodeParser::parseCode(CodeOutputInterface &codeOutIntf,
+    const char *scopeName,
+    const QCString &input,
+    SrcLangExt /*lang*/,
+    bool isExampleBlock,
+    const char *exampleName,
+    FileDef *fileDef,
+    int startLine,
+    int endLine,
+    bool inlineFragment,
+    const MemberDef *memberDef,
+    bool showLineNumbers,
+    const Definition *searchCtx,
+    bool collectXRefs
+    )
+{
+  ::parsePythonCode(codeOutIntf,scopeName,input,isExampleBlock,exampleName,
+                    fileDef,startLine,endLine,inlineFragment,memberDef,
+                    showLineNumbers,searchCtx,collectXRefs);
 }
-#elif YY_FLEX_MAJOR_VERSION<=2 && YY_FLEX_MINOR_VERSION<=5 && YY_FLEX_SUBMINOR_VERSION<33
-#error "You seem to be using a version of flex newer than 2.5.4. These are currently incompatible with 2.5.4, and do NOT work with doxygen! Please use version 2.5.4 or expect things to be parsed wrongly! A bug report has been submitted (#732132)."
-#endif
 
+void PythonCodeParser::resetCodeParserState()
+{
+  ::resetPythonCodeParserState();
+}
+
+
+#include "pycode.l.h"

@@ -139,7 +139,11 @@ enum CommandType
   CMD_SNIPWITHLINES= 109,
   CMD_EMOJI        = 110,
   CMD_EQUAL        = 111,
-  CMD_TEXREF       = 112
+  CMD_RTFINCLUDE   = 112,
+  CMD_DOCBOOKINCLUDE= 113,
+  CMD_MANINCLUDE   = 114,
+  CMD_XMLINCLUDE   = 115,
+  CMD_TEXREF       = 116
 };
 
 enum HtmlTagType
@@ -180,6 +184,9 @@ enum HtmlTagType
   HTML_BLOCKQUOTE= 33,
   HTML_STRIKE    = 34,
   HTML_UNDERLINE = 35,
+  HTML_INS       = 36,
+  HTML_DEL       = 37,
+  HTML_S         = 38,
 
   XML_CmdMask    = 0x100,
 
@@ -213,7 +220,7 @@ class Mapper
 {
   public:
     int map(const char *n);
-    QString find(const int n);
+    QCString find(const int n);
     Mapper(const CommandMap *cm,bool caseSensitive);
   private:
     QDict<int> m_map;

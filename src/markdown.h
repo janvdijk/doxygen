@@ -25,38 +25,36 @@ class Entry;
 QCString processMarkdown(const QCString &fileName,const int lineNr,Entry *e,const QCString &s);
 QCString markdownFileNameToId(const QCString &fileName);
 
-class MarkdownFileParser : public ParserInterface
+/** Performs markdown processing for a comment block if markdown processing is enabled.
+ *  @param[in] comment A string representing the actual comment block.
+ *         Note that leading *'s should already be stripped from the comment block.
+ *  @param[in] fileName The name of the file in which the comment is found.
+ *         Mainly used for producing warnings.
+ *  @param[in] lineNr The line number at which the comment block was found.
+ *  @returns The processed comment block
+ */
+QCString processMarkdownForCommentBlock(const QCString &comment,
+                                const QCString &fileName,
+                                int lineNr);
+
+class MarkdownOutlineParser : public OutlineParserInterface
 {
   public:
-    virtual ~MarkdownFileParser() {}
+    MarkdownOutlineParser();
+    virtual ~MarkdownOutlineParser();
     void startTranslationUnit(const char *) {}
     void finishTranslationUnit() {}
     void parseInput(const char *fileName, 
                     const char *fileBuf, 
-                    Entry *root,
+                    const std::shared_ptr<Entry> &root,
                     bool sameTranslationUnit,
                     QStrList &filesInSameTranslationUnit);
-    bool needsPreprocessing(const QCString &) { return FALSE; }
-    void parseCode(CodeOutputInterface &codeOutIntf,
-                   const char *scopeName,
-                   const QCString &input,
-                   SrcLangExt lang,
-                   bool isExampleBlock,
-                   const char *exampleName=0,
-                   FileDef *fileDef=0,
-                   int startLine=-1,
-                   int endLine=-1,
-                   bool inlineFragment=FALSE,
-                   const MemberDef *memberDef=0,
-                   bool showLineNumbers=TRUE,
-                   const Definition *searchCtx=0,
-                   bool collectXRefs=TRUE
-                  );
-    void resetCodeParserState();
+    bool needsPreprocessing(const QCString &) const { return FALSE; }
     void parsePrototype(const char *text);
+  private:
+    struct Private;
+    std::unique_ptr<Private> p;
 };
-
-
 
 
 #endif

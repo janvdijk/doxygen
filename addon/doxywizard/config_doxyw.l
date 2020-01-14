@@ -1,8 +1,6 @@
 /******************************************************************************
  *
- * $Id: config_templ.l,v 1.8 2001/01/01 10:15:16 root Exp $
- *
- * Copyright (C) 1997-2015 by Dimitri van Heesch.
+ * Copyright (C) 1997-2019 by Dimitri van Heesch.
  *
  * Permission to use, copy, modify, and distribute this software and its
  * documentation under the terms of the GNU General Public License is hereby 
@@ -65,6 +63,8 @@ static QTextCodec                    *g_codec     = QTextCodec::codecForName("UT
 static QString                        g_codecName = QString::fromLatin1("UTF-8");
 static int                            g_lastState;
 static QByteArray                     g_tmpString;
+
+static const char *stateToString(int state);
 
 /* -----------------------------------------------------------------
  */
@@ -230,7 +230,7 @@ static void readIncludeFile(const QString &incName)
 					   g_curOption = g_options->value(cmd);
 					   if (g_curOption==0) // oops not known
 					   {
-					     config_warn("ignoring unsupported tag `%s' at line %d, file %s\n",
+					     config_warn("ignoring unsupported tag '%s' at line %d, file %s\n",
 						 qPrintable(cmd),yylineno,qPrintable(g_yyFileName)); 
 					     BEGIN(SkipInvalid);
 					   }
@@ -255,7 +255,7 @@ static void readIncludeFile(const QString &incName)
 					         BEGIN(GetString);
 						 break;
 					       case Input::Obsolete:
-					         config_warn("Tag `%s' at line %d of file %s has become obsolete.\n"
+					         config_warn("Tag '%s' at line %d of file %s has become obsolete.\n"
 						            "To avoid this warning please update your configuration "
 							    "file using \"doxygen -u\"\n", qPrintable(cmd),
 							    yylineno,qPrintable(g_yyFileName)); 
@@ -269,7 +269,7 @@ static void readIncludeFile(const QString &incName)
 					  g_curOption = g_options->value(cmd);
 					  if (g_curOption==0) // oops not known
 					  {
-					    config_warn("ignoring unsupported tag `%s' at line %d, file %s\n",
+					    config_warn("ignoring unsupported tag '%s' at line %d, file %s\n",
 						yytext,yylineno,qPrintable(g_yyFileName)); 
 					    BEGIN(SkipInvalid);
 					  }
@@ -285,12 +285,12 @@ static void readIncludeFile(const QString &incName)
 					      case Input::String:
 					      case Input::Int:
 					      case Input::Bool:
-					        config_warn("operator += not supported for `%s'. Ignoring line at line %d, file %s\n",
+					        config_warn("operator += not supported for '%s'. Ignoring line at line %d, file %s\n",
 						    yytext,yylineno,qPrintable(g_yyFileName)); 
 					        BEGIN(SkipInvalid);
 						break;
 					      case Input::Obsolete:
-					         config_warn("Tag `%s' at line %d of file %s has become obsolete.\n"
+					         config_warn("Tag '%s' at line %d of file %s has become obsolete.\n"
 						            "To avoid this warning please update your configuration "
 							    "file using \"doxygen -u\"\n", 
 							    qPrintable(cmd),yylineno,qPrintable(g_yyFileName)); 
@@ -327,12 +327,12 @@ static void readIncludeFile(const QString &incName)
 					  }
   					}
 
-<Start>[a-z_A-Z0-9]+			{ config_warn("ignoring unknown tag `%s' at line %d, file %s\n",yytext,yylineno,qPrintable(g_yyFileName)); }
+<Start>[a-z_A-Z0-9]+			{ config_warn("ignoring unknown tag '%s' at line %d, file %s\n",yytext,yylineno,qPrintable(g_yyFileName)); }
 <GetString,SkipInvalid>\n	        { BEGIN(Start); }
 <GetStrList>\n				{ 
 					  if (!g_elemStr.isEmpty())
 					  {
-					    //printf("elemStr1=`%s'\n",qPrintable(elemStr));
+					    //printf("elemStr1='%s'\n",qPrintable(elemStr));
 					    *g_arg = QVariant(g_arg->toStringList() << g_elemStr);
 					  }
 					  BEGIN(Start); 
@@ -340,7 +340,7 @@ static void readIncludeFile(const QString &incName)
 <GetStrList>[ \t]+			{
   				          if (!g_elemStr.isEmpty())
 					  {
-					    //printf("elemStr2=`%s'\n",qPrintable(elemStr));
+					    //printf("elemStr2='%s'\n",qPrintable(elemStr));
   					    *g_arg = QVariant(g_arg->toStringList() << g_elemStr);
 					  }
 					  g_elemStr = QString();
@@ -356,7 +356,7 @@ static void readIncludeFile(const QString &incName)
 <GetQuotedString>"\""|"\n" 		{ 
                                           // we add a bogus space to signal that the string was quoted. This space will be stripped later on.
                                           g_tmpString+=" ";
-  					  //printf("Quoted String = `%s'\n",qPrintable(tmpString));
+  					  //printf("Quoted String = '%s'\n",qPrintable(tmpString));
   					  if (g_lastState==GetString)
 					  {
 					    *g_arg = g_codec->toUnicode(g_tmpString);
@@ -401,7 +401,7 @@ static void substEnvVarsInString(QString &s)
   while ((i=re.indexIn(s,p))!=-1)
   {
     l = re.matchedLength();
-    //printf("Found environment var s.mid(%d,%d)=`%s'\n",i+2,l-3,qPrintable(s.mid(i+2,l-3)));
+    //printf("Found environment var s.mid(%d,%d)='%s'\n",i+2,l-3,qPrintable(s.mid(i+2,l-3)));
     QString env=g_codec->toUnicode(getenv(s.mid(i+2,l-3).toLatin1()));
     substEnvVarsInString(env); // recursively expand variables if needed.
     s = s.left(i)+env+s.right(s.length()-i-l);
@@ -587,4 +587,4 @@ void writeStringValue(QTextStream &t,QTextCodec *codec,const QString &s)
     }
   }
 }
-
+#include "config_doxyw.l.h"

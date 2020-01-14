@@ -187,11 +187,20 @@ void XmlDocVisitor::visit(DocStyleChange *s)
     case DocStyleChange::Bold:
       if (s->enable()) m_t << "<bold>";      else m_t << "</bold>";
       break;
+    case DocStyleChange::S:
+      if (s->enable()) m_t << "<s>";      else m_t << "</s>";
+      break;
     case DocStyleChange::Strike:
       if (s->enable()) m_t << "<strike>";      else m_t << "</strike>";
       break;
+    case DocStyleChange::Del:
+      if (s->enable()) m_t << "<del>";      else m_t << "</del>";
+      break;
     case DocStyleChange::Underline:
       if (s->enable()) m_t << "<underline>";      else m_t << "</underline>";
+      break;
+    case DocStyleChange::Ins:
+      if (s->enable()) m_t << "<ins>";      else m_t << "</ins>";
       break;
     case DocStyleChange::Italic:
       if (s->enable()) m_t << "<emphasis>";     else m_t << "</emphasis>";
@@ -245,8 +254,8 @@ void XmlDocVisitor::visit(DocVerbatim *s)
           m_t << " filename=\"" << lang << "\">";
       else
           m_t << ">";
-      Doxygen::parserManager->getParser(lang)
-                            ->parseCode(m_ci,s->context(),s->text(),langExt,
+      Doxygen::parserManager->getCodeParser(lang)
+                             .parseCode(m_ci,s->context(),s->text(),langExt,
                                         s->isExample(),s->exampleFile());
       m_t << "</programlisting>"; 
       break;
@@ -256,11 +265,36 @@ void XmlDocVisitor::visit(DocVerbatim *s)
       m_t << "</verbatim>"; 
       break;
     case DocVerbatim::HtmlOnly: 
+      if (s->isBlock())
+      {
+        m_t << "<htmlonly block=\"yes\">";
+      }
+      else
+      {
+        m_t << "<htmlonly>";
+      }
+      filter(s->text());
+      m_t << "</htmlonly>";
+      break;
     case DocVerbatim::RtfOnly: 
+      m_t << "<rtfonly>";
+      filter(s->text());
+      m_t << "</rtfonly>";
+      break;
     case DocVerbatim::ManOnly: 
+      m_t << "<manonly>";
+      filter(s->text());
+      m_t << "</manonly>";
+      break;
     case DocVerbatim::LatexOnly: 
+      m_t << "<latexonly>";
+      filter(s->text());
+      m_t << "</latexonly>";
+      break;
     case DocVerbatim::DocbookOnly:
-      /* nothing */ 
+      m_t << "<docbookonly>";
+      filter(s->text());
+      m_t << "</docbookonly>";
       break;
     case DocVerbatim::XmlOnly: 
       m_t << s->text();
@@ -300,8 +334,8 @@ void XmlDocVisitor::visit(DocInclude *inc)
          m_t << "<programlisting filename=\"" << inc->file() << "\">";
          QFileInfo cfi( inc->file() );
          FileDef *fd = createFileDef( cfi.dirPath().utf8(), cfi.fileName().utf8() );
-         Doxygen::parserManager->getParser(inc->extension())
-                               ->parseCode(m_ci,inc->context(),
+         Doxygen::parserManager->getCodeParser(inc->extension())
+                                .parseCode(m_ci,inc->context(),
                                            inc->text(),
                                            langExt,
                                            inc->isExample(),
@@ -319,8 +353,8 @@ void XmlDocVisitor::visit(DocInclude *inc)
       break;    
     case DocInclude::Include: 
       m_t << "<programlisting filename=\"" << inc->file() << "\">";
-      Doxygen::parserManager->getParser(inc->extension())
-                            ->parseCode(m_ci,inc->context(),
+      Doxygen::parserManager->getCodeParser(inc->extension())
+                             .parseCode(m_ci,inc->context(),
                                         inc->text(),
                                         langExt,
                                         inc->isExample(),
@@ -354,6 +388,24 @@ void XmlDocVisitor::visit(DocInclude *inc)
       filter(inc->text());
       m_t << "</latexonly>";
       break;
+    case DocInclude::RtfInclude:
+      m_t << "<rtfonly>";
+      filter(inc->text());
+      m_t << "</rtfonly>";
+      break;
+    case DocInclude::ManInclude:
+      m_t << "<manonly>";
+      filter(inc->text());
+      m_t << "</manonly>";
+      break;
+    case DocInclude::XmlInclude:
+      filter(inc->text());
+      break;
+    case DocInclude::DocbookInclude:
+      m_t << "<docbookonly>";
+      filter(inc->text());
+      m_t << "</docbookonly>";
+      break;
     case DocInclude::VerbInclude: 
       m_t << "<verbatim>";
       filter(inc->text());
@@ -361,8 +413,8 @@ void XmlDocVisitor::visit(DocInclude *inc)
       break;
     case DocInclude::Snippet:
       m_t << "<programlisting filename=\"" << inc->file() << "\">";
-      Doxygen::parserManager->getParser(inc->extension())
-                            ->parseCode(m_ci,
+      Doxygen::parserManager->getCodeParser(inc->extension())
+                             .parseCode(m_ci,
                                         inc->context(),
                                         extractBlock(inc->text(),inc->blockId()),
                                         langExt,
@@ -376,8 +428,8 @@ void XmlDocVisitor::visit(DocInclude *inc)
          m_t << "<programlisting filename=\"" << inc->file() << "\">";
          QFileInfo cfi( inc->file() );
          FileDef *fd = createFileDef( cfi.dirPath().utf8(), cfi.fileName().utf8() );
-         Doxygen::parserManager->getParser(inc->extension())
-                               ->parseCode(m_ci,
+         Doxygen::parserManager->getCodeParser(inc->extension())
+                                .parseCode(m_ci,
                                            inc->context(),
                                            extractBlock(inc->text(),inc->blockId()),
                                            langExt,
@@ -404,7 +456,7 @@ void XmlDocVisitor::visit(DocInclude *inc)
 
 void XmlDocVisitor::visit(DocIncOperator *op)
 {
-  //printf("DocIncOperator: type=%d first=%d, last=%d text=`%s'\n",
+  //printf("DocIncOperator: type=%d first=%d, last=%d text='%s'\n",
   //    op->type(),op->isFirst(),op->isLast(),op->text().data());
   if (op->isFirst()) 
   {
@@ -423,15 +475,15 @@ void XmlDocVisitor::visit(DocIncOperator *op)
     popEnabled();
     if (!m_hide) 
     {
-      FileDef *fd;
+      FileDef *fd = 0;
       if (!op->includeFileName().isEmpty())
       {
         QFileInfo cfi( op->includeFileName() );
         fd = createFileDef( cfi.dirPath().utf8(), cfi.fileName().utf8() );
       }
 
-      Doxygen::parserManager->getParser(locLangExt)
-                            ->parseCode(m_ci,op->context(),
+      Doxygen::parserManager->getCodeParser(locLangExt)
+                             .parseCode(m_ci,op->context(),
                                         op->text(),langExt,op->isExample(),
                                         op->exampleFile(),
                                         fd,     // fileDef
@@ -815,18 +867,22 @@ void XmlDocVisitor::visitPre(DocImage *img)
 {
   if (m_hide) return;
 
-  QCString baseName=img->name();
-  int i;
-  if ((i=baseName.findRev('/'))!=-1 || (i=baseName.findRev('\\'))!=-1)
+  QCString url = img->url();
+  QCString baseName;
+  if (url.isEmpty())
   {
-    baseName=baseName.right(baseName.length()-i-1);
+    baseName = img->relPath()+img->name();
+  }
+  else
+  {
+    baseName = correctURL(url,img->relPath());
   }
   visitPreStart(m_t, "image", FALSE, this, img->children(), baseName, TRUE, img->type(), img->width(), img->height(), img ->isInlineImage());
 
   // copy the image to the output dir
   FileDef *fd;
   bool ambig;
-  if ((fd=findFileDef(Doxygen::imageNameDict,img->name(),ambig)))
+  if (url.isEmpty() && (fd=findFileDef(Doxygen::imageNameDict,img->name(),ambig)))
   {
     QFile inImage(fd->absFilePath());
     QFile outImage(Config_getString(XML_OUTPUT)+"/"+baseName.data());
@@ -992,9 +1048,9 @@ void XmlDocVisitor::visitPre(DocParamList *pl)
     {
       QListIterator<DocNode> li(pl->paramTypes());
       DocNode *type;
+      m_t << "<parametertype>";
       for (li.toFirst();(type=li.current());++li)
       {
-        m_t << "<parametertype>";
         if (type->kind()==DocNode::Kind_Word)
         {
           visit((DocWord*)type); 
@@ -1003,8 +1059,13 @@ void XmlDocVisitor::visitPre(DocParamList *pl)
         {
           visit((DocLinkedWord*)type); 
         }
-        m_t << "</parametertype>" << endl;
+        else if (type->kind()==DocNode::Kind_Sep)
+        {
+          m_t << "</parametertype>" << endl;
+          m_t << "<parametertype>";
+        }
       }
+      m_t << "</parametertype>" << endl;
     }
     m_t << "<parametername";
     if (pl->direction()!=DocParamSect::Unspecified)
@@ -1078,18 +1139,6 @@ void XmlDocVisitor::visitPost(DocInternalRef *)
   if (m_hide) return;
   endLink();
   m_t << " ";
-}
-
-void XmlDocVisitor::visitPre(DocCopy *c)
-{
-  if (m_hide) return;
-  m_t << "<copydoc link=\"" << convertToXML(c->link()) << "\">";
-}
-
-void XmlDocVisitor::visitPost(DocCopy *)
-{
-  if (m_hide) return;
-  m_t << "</copydoc>" << endl;
 }
 
 void XmlDocVisitor::visitPre(DocText *)

@@ -30,6 +30,7 @@
 #include <qregexp.h>
 #include <qstack.h>
 #include <qglobal.h>
+#include <qthread.h>
   
 #include "configimpl.h"
 #include "version.h"
@@ -43,6 +44,8 @@
 #define YY_NO_INPUT 1
 #define YY_NO_UNISTD_H 1
 
+static const char *stateToString(int state);
+
 static const char *warning_str = "warning: ";
 static const char *error_str = "error: ";
 
@@ -53,6 +56,16 @@ void config_err(const char *fmt, ...)
   vfprintf(stderr, (QCString(error_str) + fmt).data(), args);
   va_end(args); 
 }
+void config_term(const char *fmt, ...)
+{
+  va_list args;
+  va_start(args, fmt);
+  vfprintf(stderr, (QCString(error_str) + fmt).data(), args);
+  va_end(args);
+  fprintf(stderr, "%s\n", "Exiting...");
+  exit(1);
+}
+
 void config_warn(const char *fmt, ...)
 {
   va_list args;
@@ -174,7 +187,7 @@ void ConfigInt::convertStrToVal()
     int val = m_valueString.toInt(&ok);
     if (!ok || val<m_minVal || val>m_maxVal)
     {
-      config_warn("argument `%s' for option %s is not a valid number in the range [%d..%d]!\n"
+      config_warn("argument '%s' for option %s is not a valid number in the range [%d..%d]!\n"
                 "Using the default: %d!\n",m_valueString.data(),m_name.data(),m_minVal,m_maxVal,m_value);
     }
     else
@@ -199,7 +212,7 @@ void ConfigBool::convertStrToVal()
     }
     else
     {
-      config_warn("argument `%s' for option %s is not a valid boolean value\n"
+      config_warn("argument '%s' for option %s is not a valid boolean value\n"
                 "Using the default: %s!\n",m_valueString.data(),m_name.data(),m_value?"YES":"NO");
     }
   }
@@ -210,13 +223,11 @@ QCString &ConfigImpl::getString(const char *fileName,int num,const char *name) c
   ConfigOption *opt = m_dict->find(name);
   if (opt==0) 
   {
-    config_err("%s<%d>: Internal error: Requested unknown option %s!\n",fileName,num,name);
-    exit(1);
+    config_term("%s<%d>: Internal error: Requested unknown option %s!\n",fileName,num,name);
   }
   else if (opt->kind()!=ConfigOption::O_String)
   {
-    config_err("%s<%d>: Internal error: Requested option %s not of string type!\n",fileName,num,name);
-    exit(1);
+    config_term("%s<%d>: Internal error: Requested option %s not of string type!\n",fileName,num,name);
   }
   return *((ConfigString *)opt)->valueRef();
 }
@@ -226,13 +237,11 @@ QStrList &ConfigImpl::getList(const char *fileName,int num,const char *name) con
   ConfigOption *opt = m_dict->find(name);
   if (opt==0) 
   {
-    config_err("%s<%d>: Internal error: Requested unknown option %s!\n",fileName,num,name);
-    exit(1);
+    config_term("%s<%d>: Internal error: Requested unknown option %s!\n",fileName,num,name);
   }
   else if (opt->kind()!=ConfigOption::O_List)
   {
-    config_err("%s<%d>: Internal error: Requested option %s not of list type!\n",fileName,num,name);
-    exit(1);
+    config_term("%s<%d>: Internal error: Requested option %s not of list type!\n",fileName,num,name);
   }
   return *((ConfigList *)opt)->valueRef();
 }
@@ -242,13 +251,11 @@ QCString &ConfigImpl::getEnum(const char *fileName,int num,const char *name) con
   ConfigOption *opt = m_dict->find(name);
   if (opt==0) 
   {
-    config_err("%s<%d>: Internal error: Requested unknown option %s!\n",fileName,num,name);
-    exit(1);
+    config_term("%s<%d>: Internal error: Requested unknown option %s!\n",fileName,num,name);
   }
   else if (opt->kind()!=ConfigOption::O_Enum)
   {
-    config_err("%s<%d>: Internal error: Requested option %s not of enum type!\n",fileName,num,name);
-    exit(1);
+    config_term("%s<%d>: Internal error: Requested option %s not of enum type!\n",fileName,num,name);
   }
   return *((ConfigEnum *)opt)->valueRef();
 }
@@ -258,13 +265,11 @@ int &ConfigImpl::getInt(const char *fileName,int num,const char *name) const
   ConfigOption *opt = m_dict->find(name);
   if (opt==0) 
   {
-    config_err("%s<%d>: Internal error: Requested unknown option %s!\n",fileName,num,name);
-    exit(1);
+    config_term("%s<%d>: Internal error: Requested unknown option %s!\n",fileName,num,name);
   }
   else if (opt->kind()!=ConfigOption::O_Int)
   {
-    config_err("%s<%d>: Internal error: Requested option %s not of integer type!\n",fileName,num,name);
-    exit(1);
+    config_term("%s<%d>: Internal error: Requested option %s not of integer type!\n",fileName,num,name);
   }
   return *((ConfigInt *)opt)->valueRef();
 }
@@ -274,13 +279,11 @@ bool &ConfigImpl::getBool(const char *fileName,int num,const char *name) const
   ConfigOption *opt = m_dict->find(name);
   if (opt==0) 
   {
-    config_err("%s<%d>: Internal error: Requested unknown option %s!\n",fileName,num,name);
-    exit(1);
+    config_term("%s<%d>: Internal error: Requested unknown option %s!\n",fileName,num,name);
   }
   else if (opt->kind()!=ConfigOption::O_Bool)
   {
-    config_err("%s<%d>: Internal error: Requested option %s not of boolean type!\n",fileName,num,name);
-    exit(1);
+    config_term("%s<%d>: Internal error: Requested option %s not of boolean type!\n",fileName,num,name);
   }
   return *((ConfigBool *)opt)->valueRef();
 }
@@ -563,9 +566,8 @@ static QCString configStringRecode(
   void *cd = portable_iconv_open(outputEncoding,inputEncoding);
   if (cd==(void *)(-1)) 
   {
-    fprintf(stderr,"Error: unsupported character conversion: '%s'->'%s'\n",
+    config_term("Error: unsupported character conversion: '%s'->'%s'\n",
         inputEncoding.data(),outputEncoding.data());
-    exit(1);
   }
   size_t iLeft=(size_t)inputSize;
   size_t oLeft=(size_t)outputSize;
@@ -580,9 +582,8 @@ static QCString configStringRecode(
   }
   else
   {
-    fprintf(stderr,"Error: failed to translate characters from %s to %s: %s\n",
+    config_term("Error: failed to translate characters from %s to %s: %s\n",
         inputEncoding.data(),outputEncoding.data(),strerror(errno));
-    exit(1);
   }
   portable_iconv_close(cd);
   return output;
@@ -600,7 +601,7 @@ static FILE *tryPath(const char *path,const char *fileName)
   QFileInfo fi(absName);
   if (fi.exists() && fi.isFile())
   {
-    FILE *f=portable_fopen(absName,"r");
+    FILE *f=Portable::fopen(absName,"r");
     if (!f) config_err("could not open file %s for reading\n",absName.data());
     return f;
   }
@@ -616,7 +617,7 @@ static FILE *findFile(const char *fileName)
   {
     return 0;
   }
-  if (portable_isAbsolutePath(fileName))
+  if (Portable::isAbsolutePath(fileName))
   {
     return tryPath(NULL, fileName);
   }
@@ -635,9 +636,8 @@ static FILE *findFile(const char *fileName)
 static void readIncludeFile(const char *incName)
 {
   if (includeDepth==MAX_INCLUDE_DEPTH) {
-    config_err("maximum include depth (%d) reached, %s is not included. Aborting...\n",
+    config_term("maximum include depth (%d) reached, %s is not included. Aborting...\n",
 	MAX_INCLUDE_DEPTH,incName);
-    exit(1);
   } 
 
   QCString inc = incName;
@@ -675,8 +675,7 @@ static void readIncludeFile(const char *incName)
   } 
   else
   {
-    config_err("@INCLUDE = %s: not found!\n",inc.data());
-    exit(1);
+    config_term("@INCLUDE = %s: not found!\n",inc.data());
   }
 }
 
@@ -711,7 +710,7 @@ static void readIncludeFile(const char *incName)
 					   ConfigOption *option = config->get(cmd);
 					   if (option==0) // oops not known
 					   {
-					     config_warn("ignoring unsupported tag `%s' at line %d, file %s\n",
+					     config_warn("ignoring unsupported tag '%s' at line %d, file %s\n",
 						 cmd.data(),yyLineNr,yyFileName.data()); 
 					     BEGIN(SkipInvalid);
 					   }
@@ -754,12 +753,12 @@ static void readIncludeFile(const char *incName)
 					       case ConfigOption::O_Obsolete:
                                                  if (config_upd)
                                                  {
-					           config_warn("Tag `%s' at line %d of file `%s' has become obsolete.\n"
+					           config_warn("Tag '%s' at line %d of file '%s' has become obsolete.\n"
 						              "         This tag has been removed.\n", cmd.data(),yyLineNr,yyFileName.data());
                                                  }
                                                  else
                                                  {
-					           config_warn("Tag `%s' at line %d of file `%s' has become obsolete.\n"
+					           config_warn("Tag '%s' at line %d of file '%s' has become obsolete.\n"
 						              "         To avoid this warning please remove this line from your configuration "
 							      "file or upgrade it using \"doxygen -u\"\n", cmd.data(),yyLineNr,yyFileName.data()); 
                                                  }
@@ -768,12 +767,12 @@ static void readIncludeFile(const char *incName)
 					       case ConfigOption::O_Disabled:
                                                  if (config_upd)
                                                  {
-					           config_warn("Tag `%s' at line %d of file `%s' belongs to an option that was not enabled at compile time.\n"
+					           config_warn("Tag '%s' at line %d of file '%s' belongs to an option that was not enabled at compile time.\n"
 						              "         This tag has been removed.\n", cmd.data(),yyLineNr,yyFileName.data());
                                                  }
                                                  else
                                                  {
-					           config_warn("Tag `%s' at line %d of file `%s' belongs to an option that was not enabled at compile time.\n"
+					           config_warn("Tag '%s' at line %d of file '%s' belongs to an option that was not enabled at compile time.\n"
 						              "         To avoid this warning please remove this line from your configuration "
 							    "file or upgrade it using \"doxygen -u\", or recompile doxygen with this feature enabled.\n", cmd.data(),yyLineNr,yyFileName.data()); 
                                                  }
@@ -787,7 +786,7 @@ static void readIncludeFile(const char *incName)
 					  ConfigOption *option = config->get(cmd);
 					  if (option==0) // oops not known
 					  {
-					    config_warn("ignoring unsupported tag `%s' at line %d, file %s\n",
+					    config_warn("ignoring unsupported tag '%s' at line %d, file %s\n",
 						cmd.data(),yyLineNr,yyFileName.data()); 
 					    BEGIN(SkipInvalid);
 					  }
@@ -809,18 +808,18 @@ static void readIncludeFile(const char *incName)
 					      case ConfigOption::O_String:
 					      case ConfigOption::O_Int:
 					      case ConfigOption::O_Bool:
-					        config_warn("operator += not supported for `%s'. Ignoring line at line %d, file %s\n",
+					        config_warn("operator += not supported for '%s'. Ignoring line at line %d, file %s\n",
 						    yytext,yyLineNr,yyFileName.data()); 
 					        BEGIN(SkipInvalid);
 						break;
 					       case ConfigOption::O_Obsolete:
-					         config_warn("Tag `%s' at line %d of file %s has become obsolete.\n"
+					         config_warn("Tag '%s' at line %d of file %s has become obsolete.\n"
 						            "To avoid this warning please update your configuration "
 							    "file using \"doxygen -u\"\n", cmd.data(),yyLineNr,yyFileName.data()); 
 					         BEGIN(SkipInvalid);
 						 break;
 					       case ConfigOption::O_Disabled:
-					         config_warn("Tag `%s' at line %d of file %s belongs to an option that was not enabled at compile time.\n"
+					         config_warn("Tag '%s' at line %d of file %s belongs to an option that was not enabled at compile time.\n"
 						            "To avoid this warning please remove this line from your configuration "
 							    "file, upgrade it using \"doxygen -u\", or recompile doxygen with this feature enabled.\n", cmd.data(),yyLineNr,yyFileName.data()); 
 					         BEGIN(SkipInvalid);
@@ -857,13 +856,13 @@ static void readIncludeFile(const char *incName)
 					  }
   					}
 
-<Start>[a-z_A-Z0-9]+			{ config_warn("ignoring unknown tag `%s' at line %d, file %s\n",yytext,yyLineNr,yyFileName.data()); }
+<Start>[a-z_A-Z0-9]+			{ config_warn("ignoring unknown tag '%s' at line %d, file %s\n",yytext,yyLineNr,yyFileName.data()); }
 <GetString,GetBool,SkipInvalid>\n	{ yyLineNr++; BEGIN(Start); }
 <GetStrList>\n				{ 
   					  yyLineNr++; 
 					  if (!elemStr.isEmpty())
 					  {
-					    //printf("elemStr1=`%s'\n",elemStr.data());
+					    //printf("elemStr1='%s'\n",elemStr.data());
 					    l->append(elemStr);
 					  }
 					  BEGIN(Start); 
@@ -871,7 +870,7 @@ static void readIncludeFile(const char *incName)
 <GetStrList>[ \t,]+			{
   				          if (!elemStr.isEmpty())
 					  {
-					    //printf("elemStr2=`%s'\n",elemStr.data());
+					    //printf("elemStr2='%s'\n",elemStr.data());
   					    l->append(elemStr);
 					  }
 					  elemStr.resize(0);
@@ -886,7 +885,7 @@ static void readIncludeFile(const char *incName)
 <GetQuotedString>"\""|"\n" 		{ 
                                           // we add a bogus space to signal that the string was quoted. This space will be stripped later on.
                                           tmpString+=" ";
-  					  //printf("Quoted String = `%s'\n",tmpString.data());
+  					  //printf("Quoted String = '%s'\n",tmpString.data());
   					  if (lastState==GetString)
 					  {
 					    (*s)+=configStringRecode(tmpString,encoding,"UTF-8");
@@ -917,7 +916,7 @@ static void readIncludeFile(const char *incName)
 					  else 
 					  {
 					    *b=FALSE; 
-					    config_warn("Invalid value `%s' for "
+					    config_warn("Invalid value '%s' for "
 						 "boolean tag in line %d, file %s; use YES or NO\n",
 						 bs.data(),yyLineNr,yyFileName.data());
 					  }
@@ -943,7 +942,7 @@ void ConfigImpl::writeTemplate(FTextStream &t,bool sl,bool upd)
   {
     t << takeStartComment() << endl; 
   }
-  t << "# Doxyfile " << versionString << endl << endl;
+  t << "# Doxyfile " << getVersion() << endl << endl;
   if (!sl)
   {
     t << convertToComment(m_header,"");
@@ -964,7 +963,12 @@ void ConfigImpl::writeTemplate(FTextStream &t,bool sl,bool upd)
 
 void ConfigImpl::compareDoxyfile(FTextStream &t)
 {
-  t << "# Difference with default Doxyfile " << versionString << endl;
+  t << "# Difference with default Doxyfile " << getVersion();
+  if (strlen(getGitVersion()))
+  {
+    t << " (" << getGitVersion() << ")";
+  }
+  t << endl;
   QListIterator<ConfigOption> it = iterator();
   ConfigOption *option;
   for (;(option=it.current());++it)
@@ -1003,8 +1007,8 @@ static void substEnvVarsInString(QCString &s)
   //printf("substEnvVarInString(%s) start\n",s.data());
   while ((i=re.match(s,p,&l))!=-1 || (i=re2.match(s,p,&l))!=-1)
   {
-    //printf("Found environment var s.mid(%d,%d)=`%s'\n",i+2,l-3,s.mid(i+2,l-3).data());
-    QCString env=portable_getenv(s.mid(i+2,l-3));
+    //printf("Found environment var s.mid(%d,%d)='%s'\n",i+2,l-3,s.mid(i+2,l-3).data());
+    QCString env=Portable::getenv(s.mid(i+2,l-3));
     substEnvVarsInString(env); // recursively expand variables if needed.
     s = s.left(i)+env+s.right(s.length()-i-l);
     p=i+env.length(); // next time start at the end of the expanded string
@@ -1153,9 +1157,8 @@ void ConfigImpl::init()
       ConfigOption * opt = ConfigImpl::instance()->get(depName);
       if (opt==0)
       {
-        config_warn("Config option '%s' has invalid depends relation on unknown option '%s'\n",
+        config_term("Config option '%s' has invalid depends relation on unknown option '%s'\n",
             option->name().data(),depName.data());
-        exit(1);
       }
     }
   }
@@ -1200,7 +1203,7 @@ static QCString configFileToString(const char *name)
     QFileInfo fi(name);
     if (!fi.exists() || !fi.isFile())
     {
-      config_err("file `%s' not found\n",name);
+      config_err("file '%s' not found\n",name);
       return "";
     }
     f.setName(name);
@@ -1221,8 +1224,7 @@ static QCString configFileToString(const char *name)
   }
   if (!fileOpened)  
   {
-    config_err("cannot open file `%s' for reading\n",name);
-    exit(1);
+    config_term("cannot open file '%s' for reading\n",name);
   }
   return "";
 }
@@ -1282,14 +1284,13 @@ static void cleanUpPaths(QStrList &str)
       if (fi.exists() && fi.isDir())
       {
         int i = str.at();
-        QString p = fi.absFilePath();
-        if (p.at(p.length()-1)!='/')
-          p.append('/');
+        QCString p = fi.absFilePath().utf8();
+        if (p[p.length()-1]!='/') p+='/';
         str.remove();
         if (str.at()==i) // did not remove last item
-          str.insert(i,p.utf8());
+          str.insert(i,p);
         else
-          str.append(p.utf8());
+          str.append(p);
       }
     }
     sfp = str.next();
@@ -1314,9 +1315,43 @@ void Config::init()
   ConfigImpl::instance()->init();
 }
 
+static void checkList(QStrList &list,const char *name, bool equalRequired,bool valueRequired)
+{
+  const char *s=list.first();
+  while (s)
+  {
+    QCString item=s;
+    item=item.stripWhiteSpace();
+    int i=item.find('=');
+    if (i==-1 && equalRequired)
+    {
+      err("Illegal format for option %s, no equal sign ('=') specified for item '%s'\n",name,item.data());
+    }
+    if (i!=-1)
+    {
+      QCString myName=item.left(i).stripWhiteSpace();
+      if (myName.isEmpty())
+      {
+        err("Illegal format for option %s, no name specified for item '%s'\n",name,item.data());
+      }
+      else if (valueRequired)
+      {
+        QCString myValue=item.right(item.length()-i-1).stripWhiteSpace();
+        if (myValue.isEmpty())
+        {
+          err("Illegal format for option %s, no value specified for item '%s'\n",name,item.data());
+        }
+      }
+    }
+    s=list.next();
+  }
+}
+
 void Config::checkAndCorrect()
 {
-  QCString &warnFormat = ConfigImpl_getString("WARN_FORMAT");
+  ConfigValues::instance().init();
+
+  QCString &warnFormat = Config_getString(WARN_FORMAT);
   if (warnFormat.stripWhiteSpace().isEmpty())
   {
     warnFormat="$file:$line $text";
@@ -1338,7 +1373,7 @@ void Config::checkAndCorrect()
     }
   }
 
-  QCString &manExtension = ConfigImpl_getString("MAN_EXTENSION");
+  QCString &manExtension = Config_getString(MAN_EXTENSION);
 
   // set default man page extension if non is given by the user
   if (manExtension.isEmpty())
@@ -1346,7 +1381,7 @@ void Config::checkAndCorrect()
     manExtension=".3";
   }
 
-  QCString &paperType = ConfigImpl_getEnum("PAPER_TYPE");
+  QCString &paperType = Config_getEnum(PAPER_TYPE);
   paperType=paperType.lower().stripWhiteSpace();
   if (paperType.isEmpty() || paperType=="a4wide")
   {
@@ -1359,14 +1394,14 @@ void Config::checkAndCorrect()
     paperType="a4";
   }
 
-  QCString &outputLanguage=ConfigImpl_getEnum("OUTPUT_LANGUAGE");
+  QCString &outputLanguage=Config_getEnum(OUTPUT_LANGUAGE);
   outputLanguage=outputLanguage.stripWhiteSpace();
   if (outputLanguage.isEmpty())
   {
     outputLanguage = "English";
   }
 
-  QCString &htmlFileExtension=ConfigImpl_getString("HTML_FILE_EXTENSION");
+  QCString &htmlFileExtension=Config_getString(HTML_FILE_EXTENSION);
   htmlFileExtension=htmlFileExtension.stripWhiteSpace();
   if (htmlFileExtension.isEmpty())
   {
@@ -1374,7 +1409,7 @@ void Config::checkAndCorrect()
   }
 
   // expand the relative stripFromPath values
-  QStrList &stripFromPath = ConfigImpl_getList("STRIP_FROM_PATH");
+  QStrList &stripFromPath = Config_getList(STRIP_FROM_PATH);
   char *sfp = stripFromPath.first();
   if (sfp==0) // by default use the current path
   {
@@ -1389,49 +1424,46 @@ void Config::checkAndCorrect()
   }
 
   // expand the relative stripFromPath values
-  QStrList &stripFromIncPath = ConfigImpl_getList("STRIP_FROM_INC_PATH");
+  QStrList &stripFromIncPath = Config_getList(STRIP_FROM_INC_PATH);
   cleanUpPaths(stripFromIncPath);
 
   // Test to see if HTML header is valid
-  QCString &headerFile = ConfigImpl_getString("HTML_HEADER");
+  QCString &headerFile = Config_getString(HTML_HEADER);
   if (!headerFile.isEmpty())
   {
     QFileInfo fi(headerFile);
     if (!fi.exists())
     {
-      err("tag HTML_HEADER: header file `%s' "
+      config_term("tag HTML_HEADER: header file '%s' "
 	  "does not exist\n",headerFile.data());
-      exit(1);
     }
   }
   // Test to see if HTML footer is valid
-  QCString &footerFile = ConfigImpl_getString("HTML_FOOTER");
+  QCString &footerFile = Config_getString(HTML_FOOTER);
   if (!footerFile.isEmpty())
   {
     QFileInfo fi(footerFile);
     if (!fi.exists())
     {
-      err("tag HTML_FOOTER: footer file `%s' "
+      config_term("tag HTML_FOOTER: footer file '%s' "
 	  "does not exist\n",footerFile.data());
-      exit(1);
     }
   }
 
   // Test to see if MathJax code file is valid
-  if (ConfigImpl_getBool("USE_MATHJAX"))
+  if (Config_getBool(USE_MATHJAX))
   {
-    QCString &MathJaxCodefile = ConfigImpl_getString("MATHJAX_CODEFILE");
+    QCString &MathJaxCodefile = Config_getString(MATHJAX_CODEFILE);
     if (!MathJaxCodefile.isEmpty())
     {
       QFileInfo fi(MathJaxCodefile);
       if (!fi.exists())
       {
-        err("tag MATHJAX_CODEFILE file `%s' "
+        config_term("tag MATHJAX_CODEFILE file '%s' "
 	    "does not exist\n",MathJaxCodefile.data());
-        exit(1);
       }
     }
-    QCString &path = ConfigImpl_getString("MATHJAX_RELPATH");
+    QCString &path = Config_getString(MATHJAX_RELPATH);
     if (!path.isEmpty() && path.at(path.length()-1)!='/')
     {
       path+="/";
@@ -1440,79 +1472,117 @@ void Config::checkAndCorrect()
   }
 
   // Test to see if LaTeX header is valid
-  QCString &latexHeaderFile = ConfigImpl_getString("LATEX_HEADER");
+  QCString &latexHeaderFile = Config_getString(LATEX_HEADER);
   if (!latexHeaderFile.isEmpty())
   {
     QFileInfo fi(latexHeaderFile);
     if (!fi.exists())
     {
-      err("tag LATEX_HEADER: header file `%s' "
+      config_term("tag LATEX_HEADER: header file '%s' "
 	  "does not exist\n",latexHeaderFile.data());
-      exit(1);
     }
   }
   // Test to see if LaTeX footer is valid
-  QCString &latexFooterFile = ConfigImpl_getString("LATEX_FOOTER");
+  QCString &latexFooterFile = Config_getString(LATEX_FOOTER);
   if (!latexFooterFile.isEmpty())
   {
     QFileInfo fi(latexFooterFile);
     if (!fi.exists())
     {
-      err("tag LATEX_FOOTER: footer file `%s' "
+      config_term("tag LATEX_FOOTER: footer file '%s' "
 	  "does not exist\n",latexFooterFile.data());
-      exit(1);
     }
   }
 
   // check include path
-  QStrList &includePath = ConfigImpl_getList("INCLUDE_PATH");
+  QStrList &includePath = Config_getList(INCLUDE_PATH);
   char *s=includePath.first();
   while (s)
   {
     QFileInfo fi(s);
-    if (!fi.exists()) warn_uncond("tag INCLUDE_PATH: include path `%s' "
+    if (!fi.exists()) warn_uncond("tag INCLUDE_PATH: include path '%s' "
 	                  "does not exist\n",s);
     s=includePath.next();
   }
 
-  // check aliases
-  QStrList &aliasList = ConfigImpl_getList("ALIASES");
+  // check PREDEFINED
+  if (Config_getBool(ENABLE_PREPROCESSING))
+  {
+    QStrList &predefList = Config_getList(PREDEFINED);
+    s=predefList.first();
+    while (s)
+    {
+      QCString predef=s;
+      predef=predef.stripWhiteSpace();
+      int i_equals=predef.find('=');
+      int i_obrace=predef.find('(');
+      if ((i_obrace==0) || (i_equals==0) || (i_equals==1 && predef.at(i_equals-1)==':'))
+      {
+        err("Illegal PREDEFINED format '%s', no define name specified\n",predef.data());
+      }
+      s=predefList.next();
+    }
+  }
+
+  // check ALIASES
+  QStrList &aliasList = Config_getList(ALIASES);
   s=aliasList.first();
   while (s)
   {
     QRegExp re1("[a-z_A-Z][a-z_A-Z0-9]*[ \t]*=");         // alias without argument
-    QRegExp re2("[a-z_A-Z][a-z_A-Z0-9]*{[0-9]*}[ \t]*="); // alias with argument
+    QRegExp re2("[a-z_A-Z][a-z_A-Z0-9]*{[0-9]+}[ \t]*="); // alias with argument
     QCString alias=s;
     alias=alias.stripWhiteSpace();
     if (alias.find(re1)!=0 && alias.find(re2)!=0)
     {
-      err("Illegal alias format `%s'. Use \"name=value\" or \"name(n)=value\", where n is the number of arguments\n",
+      err("Illegal ALIASES format '%s'. Use \"name=value\" or \"name{n}=value\", where n is the number of arguments\n",
 	  alias.data());
     }
     s=aliasList.next();
   }
 
+  // check EXTENSION_MAPPING
+  checkList(Config_getList(EXTENSION_MAPPING),"EXTENSION_MAPPING",TRUE,TRUE);
+
+  // check FILTER_PATTERNS
+  checkList(Config_getList(FILTER_PATTERNS),"FILTER_PATTERNS",TRUE,TRUE);
+
+  // check FILTER_SOURCE_PATTERNS
+  checkList(Config_getList(FILTER_SOURCE_PATTERNS),"FILTER_SOURCE_PATTERNS",FALSE,FALSE);
+
+  // check TAGFILES
+  checkList(Config_getList(TAGFILES),"TAGFILES",FALSE,TRUE);
+
+  // check EXTRA_SEARCH_MAPPINGS
+  if (Config_getBool(SEARCHENGINE) && Config_getBool(GENERATE_HTML))
+  {
+    checkList(Config_getList(EXTRA_SEARCH_MAPPINGS),"EXTRA_SEARCH_MAPPING",TRUE,TRUE);
+  }
+
+  // check TCL_SUBST
+  checkList(Config_getList(TCL_SUBST),"TCL_SUBST",TRUE,TRUE);
+
   // check if GENERATE_TREEVIEW and GENERATE_HTMLHELP are both enabled
-  if (ConfigImpl_getBool("GENERATE_TREEVIEW") && ConfigImpl_getBool("GENERATE_HTMLHELP"))
+  if (Config_getBool(GENERATE_TREEVIEW) && Config_getBool(GENERATE_HTMLHELP))
   {
     err("When enabling GENERATE_HTMLHELP the tree view (GENERATE_TREEVIEW) should be disabled. I'll do it for you.\n");
-    ConfigImpl_getBool("GENERATE_TREEVIEW")=FALSE;
+    Config_getBool(GENERATE_TREEVIEW)=FALSE;
   }
-  if (ConfigImpl_getBool("SEARCHENGINE") && ConfigImpl_getBool("GENERATE_HTMLHELP"))
+  if (Config_getBool(SEARCHENGINE) && Config_getBool(GENERATE_HTMLHELP))
   {
     err("When enabling GENERATE_HTMLHELP the search engine (SEARCHENGINE) should be disabled. I'll do it for you.\n");
-    ConfigImpl_getBool("SEARCHENGINE")=FALSE;
+    Config_getBool(SEARCHENGINE)=FALSE;
   }
 
   // check if SEPARATE_MEMBER_PAGES and INLINE_GROUPED_CLASSES are both enabled
-  if (ConfigImpl_getBool("SEPARATE_MEMBER_PAGES") && ConfigImpl_getBool("INLINE_GROUPED_CLASSES"))
+  if (Config_getBool(SEPARATE_MEMBER_PAGES) && Config_getBool(INLINE_GROUPED_CLASSES))
   {
     err("When enabling INLINE_GROUPED_CLASSES the SEPARATE_MEMBER_PAGES option should be disabled. I'll do it for you.\n");
-    ConfigImpl_getBool("SEPARATE_MEMBER_PAGES")=FALSE;
+    Config_getBool(SEPARATE_MEMBER_PAGES)=FALSE;
   }
 
   // check dot image format
-  QCString &dotImageFormat=ConfigImpl_getEnum("DOT_IMAGE_FORMAT");
+  QCString &dotImageFormat=Config_getEnum(DOT_IMAGE_FORMAT);
   dotImageFormat=dotImageFormat.stripWhiteSpace();
   if (dotImageFormat.isEmpty())
   {
@@ -1520,21 +1590,47 @@ void Config::checkAndCorrect()
   }
   //else if (dotImageFormat!="gif" && dotImageFormat!="png" && dotImageFormat!="jpg")
   //{
-  //  err("Invalid value for DOT_IMAGE_FORMAT: `%s'. Using the default.\n",dotImageFormat.data());
+  //  err("Invalid value for DOT_IMAGE_FORMAT: '%s'. Using the default.\n",dotImageFormat.data());
   //  dotImageFormat = "png";
   //}
 
-  QCString &dotFontName=ConfigImpl_getString("DOT_FONTNAME");
+  // correct DOT_FONTNAME if needed
+  QCString &dotFontName=Config_getString(DOT_FONTNAME);
   if (dotFontName=="FreeSans" || dotFontName=="FreeSans.ttf")
   {
     warn_uncond("doxygen no longer ships with the FreeSans font.\n"
                "You may want to clear or change DOT_FONTNAME.\n"
                "Otherwise you run the risk that the wrong font is being used for dot generated graphs.\n");
   }
+  else if (dotFontName.isEmpty())
+  {
+    dotFontName = "Helvetica";
+  }
 
+  // clip dotFontSize against the maximum bounds
+  int &dotFontSize = Config_getInt(DOT_FONTSIZE);
+  if (dotFontSize<4)
+  {
+    dotFontSize=4;
+  }
+  else if (dotFontSize>24)
+  {
+    dotFontSize=24;
+  }
+
+  // clip number of threads
+  int &dotNumThreads = Config_getInt(DOT_NUM_THREADS);
+  if (dotNumThreads>32)
+  {
+    dotNumThreads=32;
+  }
+  else if (dotNumThreads<=0)
+  {
+    dotNumThreads=QMAX(2,QThread::idealThreadCount()+1);
+  }
 
   // check dot path
-  QCString &dotPath = ConfigImpl_getString("DOT_PATH");
+  QCString &dotPath = Config_getString(DOT_PATH);
   if (!dotPath.isEmpty())
   {
     QFileInfo fi(dotPath);
@@ -1544,7 +1640,7 @@ void Config::checkAndCorrect()
     }
     else
     {
-      QFileInfo dp(dotPath+"/dot"+portable_commandExtension());
+      QFileInfo dp(dotPath+"/dot"+Portable::commandExtension());
       if (!dp.exists() || !dp.isFile())
       {
 	warn_uncond("the dot tool could not be found at %s\n",dotPath.data());
@@ -1566,16 +1662,16 @@ void Config::checkAndCorrect()
   }
 
   // check plantuml path
-  QCString &plantumlJarPath = ConfigImpl_getString("PLANTUML_JAR_PATH");
+  QCString &plantumlJarPath = Config_getString(PLANTUML_JAR_PATH);
   if (!plantumlJarPath.isEmpty())
   {
     QFileInfo pu(plantumlJarPath);
     if (pu.exists() && pu.isDir()) // PLANTUML_JAR_PATH is directory
     {
-      QFileInfo jar(plantumlJarPath+portable_pathSeparator()+"plantuml.jar");
+      QFileInfo jar(plantumlJarPath+Portable::pathSeparator()+"plantuml.jar");
       if (jar.exists() && jar.isFile())
       {
-        plantumlJarPath = jar.dirPath(TRUE).utf8()+portable_pathSeparator();
+        plantumlJarPath = jar.dirPath(TRUE).utf8()+Portable::pathSeparator();
       }
       else
       {
@@ -1586,7 +1682,7 @@ void Config::checkAndCorrect()
     }
     else if (pu.exists() && pu.isFile() && plantumlJarPath.right(4)==".jar") // PLANTUML_JAR_PATH is file
     {
-      plantumlJarPath = pu.dirPath(TRUE).utf8()+portable_pathSeparator();
+      plantumlJarPath = pu.dirPath(TRUE).utf8()+Portable::pathSeparator();
     }
     else
     {
@@ -1597,10 +1693,10 @@ void Config::checkAndCorrect()
   }
 
   // check dia path
-  QCString &diaPath = ConfigImpl_getString("DIA_PATH");
+  QCString &diaPath = Config_getString(DIA_PATH);
   if (!diaPath.isEmpty())
   {
-    QFileInfo dp(diaPath+"/dia"+portable_commandExtension());
+    QFileInfo dp(diaPath+"/dia"+Portable::commandExtension());
     if (!dp.exists() || !dp.isFile())
     {
       warn_uncond("dia could not be found at %s\n",diaPath.data());
@@ -1621,7 +1717,7 @@ void Config::checkAndCorrect()
   }
 
   // check input
-  QStrList &inputSources=ConfigImpl_getList("INPUT");
+  QStrList &inputSources=Config_getList(INPUT);
   if (inputSources.count()==0)
   {
     // use current dir as the default
@@ -1635,83 +1731,89 @@ void Config::checkAndCorrect()
       QFileInfo fi(s);
       if (!fi.exists())
       {
-	warn_uncond("tag INPUT: input source `%s' does not exist\n",s);
+	warn_uncond("tag INPUT: input source '%s' does not exist\n",s);
       }
       s=inputSources.next();
     }
   }
 
   // add default file patterns if needed
-  QStrList &filePatternList = ConfigImpl_getList("FILE_PATTERNS");
+  QStrList &filePatternList = Config_getList(FILE_PATTERNS);
   if (filePatternList.isEmpty())
   {
-      ConfigOption * opt = ConfigImpl::instance()->get("FILE_PATTERNS");
-      if (opt->kind()==ConfigOption::O_List)
+    ConfigOption * opt = ConfigImpl::instance()->get("FILE_PATTERNS");
+    if (opt->kind()==ConfigOption::O_List)
+    {
+      QStrList l = ((ConfigList*)opt)->getDefault();
+      const char *p = l.first();
+      while (p)
       {
-        ((ConfigList*)opt)->init();
+        filePatternList.append(p);
+        p = l.next();
       }
+    }
   }
 
   // add default pattern if needed
-  QStrList &examplePatternList = ConfigImpl_getList("EXAMPLE_PATTERNS");
+  QStrList &examplePatternList = Config_getList(EXAMPLE_PATTERNS);
   if (examplePatternList.isEmpty())
   {
     examplePatternList.append("*");
   }
 
   // if no output format is enabled, warn the user
-  if (!ConfigImpl_getBool("GENERATE_HTML")    &&
-      !ConfigImpl_getBool("GENERATE_LATEX")   &&
-      !ConfigImpl_getBool("GENERATE_MAN")     &&
-      !ConfigImpl_getBool("GENERATE_RTF")     &&
-      !ConfigImpl_getBool("GENERATE_XML")     &&
-      !ConfigImpl_getBool("GENERATE_PERLMOD") &&
-      !ConfigImpl_getBool("GENERATE_RTF")     &&
-      !ConfigImpl_getBool("GENERATE_DOCBOOK") &&
-      !ConfigImpl_getBool("GENERATE_AUTOGEN_DEF") &&
-      ConfigImpl_getString("GENERATE_TAGFILE").isEmpty()
+  if (!Config_getBool(GENERATE_HTML)    &&
+      !Config_getBool(GENERATE_LATEX)   &&
+      !Config_getBool(GENERATE_MAN)     &&
+      !Config_getBool(GENERATE_RTF)     &&
+      !Config_getBool(GENERATE_XML)     &&
+      !Config_getBool(GENERATE_PERLMOD) &&
+      !Config_getBool(GENERATE_RTF)     &&
+      !Config_getBool(GENERATE_DOCBOOK) &&
+      !Config_getBool(GENERATE_AUTOGEN_DEF) &&
+      Config_getString(GENERATE_TAGFILE).isEmpty()
      )
   {
     warn_uncond("No output formats selected! Set at least one of the main GENERATE_* options to YES.\n");
   }
 
   // check HTMLHELP creation requirements
-  if (!ConfigImpl_getBool("GENERATE_HTML") &&
-      ConfigImpl_getBool("GENERATE_HTMLHELP"))
+  if (!Config_getBool(GENERATE_HTML) &&
+      Config_getBool(GENERATE_HTMLHELP))
   {
     warn_uncond("GENERATE_HTMLHELP=YES requires GENERATE_HTML=YES.\n");
   }
 
   // check QHP creation requirements
-  if (ConfigImpl_getBool("GENERATE_QHP"))
+  if (Config_getBool(GENERATE_QHP))
   {
-    if (ConfigImpl_getString("QHP_NAMESPACE").isEmpty())
+    if (Config_getString(QHP_NAMESPACE).isEmpty())
     {
       err("GENERATE_QHP=YES requires QHP_NAMESPACE to be set. Using 'org.doxygen.doc' as default!.\n");
-      ConfigImpl_getString("QHP_NAMESPACE")="org.doxygen.doc";
+      Config_getString(QHP_NAMESPACE)="org.doxygen.doc";
     }
 
-    if (ConfigImpl_getString("QHP_VIRTUAL_FOLDER").isEmpty())
+    if (Config_getString(QHP_VIRTUAL_FOLDER).isEmpty())
     {
       err("GENERATE_QHP=YES requires QHP_VIRTUAL_FOLDER to be set. Using 'doc' as default!\n");
-      ConfigImpl_getString("QHP_VIRTUAL_FOLDER")="doc";
+      Config_getString(QHP_VIRTUAL_FOLDER)="doc";
     }
   }
 
-  if (ConfigImpl_getBool("OPTIMIZE_OUTPUT_JAVA") && ConfigImpl_getBool("INLINE_INFO"))
+  if (Config_getBool(OPTIMIZE_OUTPUT_JAVA) && Config_getBool(INLINE_INFO))
   {
     // don't show inline info for Java output, since Java has no inline
     // concept.
-    ConfigImpl_getBool("INLINE_INFO")=FALSE;
+    Config_getBool(INLINE_INFO)=FALSE;
   }
 
-  int &depth = ConfigImpl_getInt("MAX_DOT_GRAPH_DEPTH");
+  int &depth = Config_getInt(MAX_DOT_GRAPH_DEPTH);
   if (depth==0)
   {
     depth=1000;
   }
 
-  int &hue = ConfigImpl_getInt("HTML_COLORSTYLE_HUE");
+  int &hue = Config_getInt(HTML_COLORSTYLE_HUE);
   if (hue<0)
   {
     hue=0;
@@ -1721,7 +1823,7 @@ void Config::checkAndCorrect()
     hue=hue%360;
   }
 
-  int &sat = ConfigImpl_getInt("HTML_COLORSTYLE_SAT");
+  int &sat = Config_getInt(HTML_COLORSTYLE_SAT);
   if (sat<0)
   {
     sat=0;
@@ -1730,7 +1832,7 @@ void Config::checkAndCorrect()
   {
     sat=255;
   }
-  int &gamma = ConfigImpl_getInt("HTML_COLORSTYLE_GAMMA");
+  int &gamma = Config_getInt(HTML_COLORSTYLE_GAMMA);
   if (gamma<40)
   {
     gamma=40;
@@ -1740,16 +1842,16 @@ void Config::checkAndCorrect()
     gamma=240;
   }
 
-  QCString mathJaxFormat = ConfigImpl_getEnum("MATHJAX_FORMAT");
+  QCString mathJaxFormat = Config_getEnum(MATHJAX_FORMAT);
   if (!mathJaxFormat.isEmpty() && mathJaxFormat!="HTML-CSS" &&
        mathJaxFormat!="NativeMML" && mathJaxFormat!="SVG")
   {
     err("Unsupported value for MATHJAX_FORMAT: Should be one of HTML-CSS, NativeMML, or SVG\n");
-    ConfigImpl_getEnum("MATHJAX_FORMAT")="HTML-CSS";
+    Config_getEnum(MATHJAX_FORMAT)="HTML-CSS";
   }
 
   // add default words if needed
-  QStrList &annotationFromBrief = ConfigImpl_getList("ABBREVIATE_BRIEF");
+  QStrList &annotationFromBrief = Config_getList(ABBREVIATE_BRIEF);
   if (annotationFromBrief.isEmpty())
   {
     annotationFromBrief.append("The $name class");
@@ -1766,21 +1868,21 @@ void Config::checkAndCorrect()
   }
 
   // some default settings for vhdl
-  if (ConfigImpl_getBool("OPTIMIZE_OUTPUT_VHDL") &&
-      (ConfigImpl_getBool("INLINE_INHERITED_MEMB") ||
-       ConfigImpl_getBool("INHERIT_DOCS") ||
-       !ConfigImpl_getBool("HIDE_SCOPE_NAMES") ||
-       !ConfigImpl_getBool("EXTRACT_PRIVATE") ||
-       !ConfigImpl_getBool("EXTRACT_PACKAGE")
+  if (Config_getBool(OPTIMIZE_OUTPUT_VHDL) &&
+      (Config_getBool(INLINE_INHERITED_MEMB) ||
+       Config_getBool(INHERIT_DOCS) ||
+       !Config_getBool(HIDE_SCOPE_NAMES) ||
+       !Config_getBool(EXTRACT_PRIVATE) ||
+       !Config_getBool(EXTRACT_PACKAGE)
       )
      )
   {
-    bool b1 = ConfigImpl_getBool("INLINE_INHERITED_MEMB");
-    bool b2 = ConfigImpl_getBool("INHERIT_DOCS");
-    bool b3 = ConfigImpl_getBool("HIDE_SCOPE_NAMES");
-    bool b4 = ConfigImpl_getBool("EXTRACT_PRIVATE");
-    bool b5 = ConfigImpl_getBool("SKIP_FUNCTION_MACROS");
-    bool b6 = ConfigImpl_getBool("EXTRACT_PACKAGE");
+    bool b1 = Config_getBool(INLINE_INHERITED_MEMB);
+    bool b2 = Config_getBool(INHERIT_DOCS);
+    bool b3 = Config_getBool(HIDE_SCOPE_NAMES);
+    bool b4 = Config_getBool(EXTRACT_PRIVATE);
+    bool b5 = Config_getBool(SKIP_FUNCTION_MACROS);
+    bool b6 = Config_getBool(EXTRACT_PACKAGE);
     const char *s1,*s2,*s3,*s4,*s5,*s6;
     if (b1)  s1="  INLINE_INHERITED_MEMB  = NO (was YES)\n"; else s1="";
     if (b2)  s2="  INHERIT_DOCS           = NO (was YES)\n"; else s2="";
@@ -1794,15 +1896,15 @@ void Config::checkAndCorrect()
 	       "%s%s%s%s%s%s",s1,s2,s3,s4,s5,s6
 	      );
 
-    ConfigImpl_getBool("INLINE_INHERITED_MEMB") = FALSE;
-    ConfigImpl_getBool("INHERIT_DOCS")          = FALSE;
-    ConfigImpl_getBool("HIDE_SCOPE_NAMES")      = TRUE;
-    ConfigImpl_getBool("EXTRACT_PRIVATE")       = TRUE;
-    ConfigImpl_getBool("ENABLE_PREPROCESSING")  = FALSE;
-    ConfigImpl_getBool("EXTRACT_PACKAGE")       = TRUE;
+    Config_getBool(INLINE_INHERITED_MEMB) = FALSE;
+    Config_getBool(INHERIT_DOCS)          = FALSE;
+    Config_getBool(HIDE_SCOPE_NAMES)      = TRUE;
+    Config_getBool(EXTRACT_PRIVATE)       = TRUE;
+    Config_getBool(ENABLE_PREPROCESSING)  = FALSE;
+    Config_getBool(EXTRACT_PACKAGE)       = TRUE;
   }
 
-  checkFileName(ConfigImpl_getString("GENERATE_TAGFILE"),"GENERATE_TAGFILE");
+  checkFileName(Config_getString(GENERATE_TAGFILE),"GENERATE_TAGFILE");
 
 #if 0 // TODO: this breaks test 25; SOURCEBROWSER = NO and SOURCE_TOOLTIPS = YES.
       // So this and other regressions should be analysed and fixed before this can be enabled
@@ -1828,7 +1930,6 @@ void Config::checkAndCorrect()
   }
 #endif
 
-  ConfigValues::instance().init();
 
 }
 
@@ -1858,10 +1959,10 @@ void Config::postProcess(bool clearHeaderAndFooter, bool compare)
   // refers to the files that we are supposed to parse.
   if (clearHeaderAndFooter)
   {
-    ConfigImpl_getString("HTML_HEADER")="";
-    ConfigImpl_getString("HTML_FOOTER")="";
-    ConfigImpl_getString("LATEX_HEADER")="";
-    ConfigImpl_getString("LATEX_FOOTER")="";
+    Config_getString(HTML_HEADER)="";
+    Config_getString(HTML_FOOTER)="";
+    Config_getString(LATEX_HEADER)="";
+    Config_getString(LATEX_FOOTER)="";
   }
 }
 
@@ -1870,3 +1971,4 @@ void Config::deinit()
   ConfigImpl::instance()->deleteInstance();
 }
 
+#include "configimpl.l.h"

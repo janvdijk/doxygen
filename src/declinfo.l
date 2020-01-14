@@ -34,6 +34,7 @@
 #include "declinfo.h"
 #include "util.h"
 #include "message.h"
+#include "types.h"
 
 #define YY_NO_INPUT 1
 #define YY_NO_UNISTD_H 1
@@ -59,8 +60,10 @@ struct declinfoYY_state
      bool         funcTempListFound;
      QCString     exceptionString;
      bool         insideObjC;
+     bool         insidePHP;
 };
 
+static const char *stateToString(int state);
 static void addType(yyscan_t yyscanner);
 static void addTypeName(yyscan_t yyscanner);
 static int yyread(char *buf,int max_size, yyscan_t yyscanner);
@@ -100,13 +103,21 @@ ID	"$"?([a-z_A-Z\x80-\xFF][a-z_A-Z0-9\x80-\xFF]*)|(@[0-9]+)
 				    yyextra->name += yytext;
 				  }
   				}
+<Start>([~!]{B}*)?{ID}{B}*"["{B}*"]" { // PHP
+  				  if (!yyextra->insidePHP)
+				  {
+				    REJECT;
+				  }
+  				  addTypeName(yyscanner);
+				  yyextra->name += removeRedundantWhiteSpace(yytext);
+  				}
 <Start>([~!]{B}*)?{ID}/({B}*"["{B}*"]")* { // the []'s are for Java, 
                                         // the / was add to deal with multi-
                                         // dimensional C++ arrays like A[][15]
                                         // the leading ~ is for a destructor
                                         // the leading ! is for a C++/CLI finalizer (see bug 456475 and 635198)
   				  addTypeName(yyscanner);
-				  yyextra->name += yytext;
+				  yyextra->name += removeRedundantWhiteSpace(yytext);
   				}
 <Start>{B}*"::"{B}*		{ // found a yyextra->scope specifier
  				  if (!yyextra->scope.isEmpty())
@@ -198,7 +209,7 @@ ID	"$"?([a-z_A-Z\x80-\xFF][a-z_A-Z0-9\x80-\xFF]*)|(@[0-9]+)
 static void addType(yyscan_t yyscanner)
 {
   struct yyguts_t *yyg = (struct yyguts_t*)yyscanner;
-  //printf("addType() yyextra->type=`%s' yyextra->scope=`%s' yyextra->name=`%s'\n",
+  //printf("addType() yyextra->type='%s' yyextra->scope='%s' yyextra->name='%s'\n",
   //       yyextra->type.data(),yyextra->scope.data(),yyextra->name.data());
   if (yyextra->name.isEmpty() && yyextra->scope.isEmpty()) return;
   if (!yyextra->type.isEmpty()) yyextra->type+=" ";
@@ -211,7 +222,7 @@ static void addType(yyscan_t yyscanner)
 static void addTypeName(yyscan_t yyscanner)
 {
   struct yyguts_t *yyg = (struct yyguts_t*)yyscanner;
-  //printf("addTypeName() yyextra->type=`%s' yyextra->scope=`%s' yyextra->name=`%s'\n",
+  //printf("addTypeName() yyextra->type='%s' yyextra->scope='%s' yyextra->name='%s'\n",
   //       yyextra->type.data(),yyextra->scope.data(),yyextra->name.data());
   if (yyextra->name.isEmpty() || 
       yyextra->name.at(yyextra->name.length()-1)==':')  // end of Objective-C keyword => append to yyextra->name not yyextra->type
@@ -240,7 +251,7 @@ static int yyread(char *buf,int max_size, yyscan_t yyscanner)
 static yyscan_t g_yyscanner;
 static struct declinfoYY_state g_declinfo_extra;
 
-void parseFuncDecl(const QCString &decl,bool objC,QCString &cl,QCString &t,
+void parseFuncDecl(const QCString &decl,const SrcLangExt lang,QCString &cl,QCString &t,
                    QCString &n,QCString &a,QCString &ftl,QCString &exc)
 {
   if (decl.isEmpty())
@@ -251,16 +262,17 @@ void parseFuncDecl(const QCString &decl,bool objC,QCString &cl,QCString &t,
   struct yyguts_t *yyg = (struct yyguts_t*)g_yyscanner;
 
 #ifdef FLEX_DEBUG
-  yyset_debug(1,g_yyscanner);
+  declinfoYYset_debug(1,g_yyscanner);
 #endif
 
   printlex(yy_flex_debug, TRUE, __FILE__, NULL);
   yyextra->inputString   = decl;
-  //printf("Input=`%s'\n",yyextra->inputString);
+  //printf("Input='%s'\n",yyextra->inputString);
   yyextra->inputPosition      = 0;
   yyextra->classTempListFound = FALSE;
   yyextra->funcTempListFound  = FALSE;
-  yyextra->insideObjC = objC;
+  yyextra->insideObjC = lang==SrcLangExt_ObjC;
+  yyextra->insidePHP  = lang==SrcLangExt_PHP;
   yyextra->scope.resize(0);
   yyextra->className.resize(0);
   yyextra->classTempList.resize(0);
@@ -274,11 +286,11 @@ void parseFuncDecl(const QCString &decl,bool objC,QCString &cl,QCString &t,
   BEGIN( Start );
   declinfoYYlex(g_yyscanner);
 
-  //printf("yyextra->type=`%s' class=`%s' yyextra->name=`%s' yyextra->args=`%s'\n",
+  //printf("yyextra->type='%s' class='%s' yyextra->name='%s' yyextra->args='%s'\n",
   //        yyextra->type.data(),yyextra->scope.data(),yyextra->name.data(),yyextra->args.data());
 
   int nb = yyextra->name.findRev('[');
-  if (nb!=-1 && yyextra->args.isEmpty()) // correct for [] in yyextra->name ambigity (due to Java return yyextra->type allowing [])
+  if (nb!=-1 && yyextra->args.isEmpty()) // correct for [] in yyextra->name ambiguity (due to Java return yyextra->type allowing [])
   {
     yyextra->args.prepend(yyextra->name.right(yyextra->name.length()-nb));
     yyextra->name=yyextra->name.left(nb);
@@ -327,18 +339,13 @@ void parseFuncDecl(const QCString &decl,bool objC,QCString &cl,QCString &t,
     a.prepend(")");
     t=t.left(t.length()-1);
   }
-  //printf("yyextra->type=`%s' class=`%s' yyextra->name=`%s' yyextra->args=`%s'\n",
+  //printf("yyextra->type='%s' class='%s' yyextra->name='%s' yyextra->args='%s'\n",
   //        t.data(),cl.data(),n.data(),a.data());
 
   printlex(yy_flex_debug, FALSE, __FILE__, NULL);
   declinfoYYlex_destroy(g_yyscanner);
   return;
 }
-
-//extern "C" { // some bogus code to keep the compiler happy
-//  int  declinfoYYwrap() { return 1 ; }
-//  void declinfoYYdummy() { yy_flex_realloc(0,0); } 
-//}
 
 #if 0
 void dumpDecl(const char *s)
@@ -351,8 +358,8 @@ void dumpDecl(const char *s)
   QCString funcTNames;
   msg("-----------------------------------------\n");
   parseFuncDecl(s,yyextra->className,classTNames,yyextra->type,yyextra->name,yyextra->args,funcTNames);
-  msg("yyextra->type=`%s' class=`%s' classTempl=`%s' yyextra->name=`%s' "
-         "funcTemplateNames=`%s' yyextra->args=`%s'\n",
+  msg("yyextra->type='%s' class='%s' classTempl='%s' yyextra->name='%s' "
+         "funcTemplateNames='%s' yyextra->args='%s'\n",
 	    yyextra->type.data(),yyextra->className.data(),classTNames.data(),
 	    yyextra->name.data(),funcTNames.data(),yyextra->args.data()
 	);
@@ -373,10 +380,5 @@ int main()
 }
 #endif
 
-#if !defined(YY_FLEX_SUBMINOR_VERSION) 
-//----------------------------------------------------------------------------
-extern "C" { // some bogus code to keep the compiler happy
-  void declinfoYYdummy() { yy_flex_realloc(0,0); } 
-}
-#endif
 
+#include "declinfo.l.h"

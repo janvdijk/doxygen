@@ -51,6 +51,7 @@
 #include "config.h"
 #include "section.h"
 #include "message.h"
+#include "portable.h"
 
 //-----------
 
@@ -108,7 +109,8 @@ static Entry         *g_current;
 static QCString       g_fileName;
 static int            g_lineNr;
 static int            g_indentLevel=0;  // 0 is outside markdown, -1=page level
-
+static const char     g_utf8_nbsp[3] = {'\xc2', '\xa0', '\0'}; // UTF-8 nbsp
+static const char    *g_doxy_nsbp = "&_doxy_nbsp;";            // doxygen escape command for UTF-8 nbsp
 //----------
 
 const int codeBlockIndent = 4;
@@ -480,7 +482,7 @@ static int processNmdash(GrowBuf &out,const char *data,int off,int size)
   {
     count++;
   }
-  if (count==2 && off>=2 && qstrncmp(data-2,"<!",2)==0) return 0; // start HTML comment
+  if (count>=2 && off>=2 && qstrncmp(data-2,"<!",2)==0) return 1-count; // start HTML comment
   if (count==2 && (data[2]=='>')) return 0; // end HTML comment
   if (count==2 && (off<8 || qstrncmp(data-8,"operator",8)!=0)) // -- => ndash
   {
@@ -979,7 +981,7 @@ static int processCodeSpan(GrowBuf &out, const char *data, int /*offset*/, int s
       nl++;
     }
     else if (data[end]=='\'' && nb==1 && (end==size-1 || (end<size-1 && !isIdChar(end+1))))
-    { // look for quoted strings like `some word', but skip strings like `it's cool`
+    { // look for quoted strings like 'some word', but skip strings like `it's cool`
       QCString textFragment;
       convertStringFragment(textFragment,data+nb,end-nb);
       out.addStr("&lsquo;");
@@ -1028,6 +1030,17 @@ static int processCodeSpan(GrowBuf &out, const char *data, int /*offset*/, int s
   return end;
 }
 
+static void addStrEscapeUtf8Nbsp(GrowBuf &out,const char *s,int len)
+{
+  if (Portable::strnstr(s,g_doxy_nsbp,len)==0) // no escape needed -> fast
+  {
+    out.addStr(s,len);
+  }
+  else // escape needed -> slow
+  {
+    out.addStr(substitute(QCString(s).left(len),g_doxy_nsbp,g_utf8_nbsp));
+  }
+}
 
 static int processSpecialCommand(GrowBuf &out, const char *data, int offset, int size)
 {
@@ -1044,7 +1057,7 @@ static int processSpecialCommand(GrowBuf &out, const char *data, int offset, int
         if (qstrncmp(&data[i+1],endBlockName,l)==0)
         {
           //printf("found end at %d\n",i);
-          out.addStr(data,i+1+l);
+          addStrEscapeUtf8Nbsp(out,data,i+1+l);
           return i+1+l;
         }
       }
@@ -1084,9 +1097,9 @@ static void processInline(GrowBuf &out,const char *data,int size)
     if (end>=size) break;
     i=end;
     end = action(out,data+i,i,size-i);
-    if (!end)
+    if (end<=0)
     {
-      end=i+1;
+      end=i+1-end;
     }
     else
     {
@@ -1828,7 +1841,7 @@ static int writeTableBlock(GrowBuf &out,const char *data,int size)
   }
 
 
-  out.addStr("<table class=\"markdownTable\">\n");
+  out.addStr("<table class=\"markdownTable\">");
   QCString cellTag("th"), cellClass("class=\"markdownTableHead");
   for (unsigned row = 0; row < tableContents.size(); row++)
   {
@@ -1836,16 +1849,16 @@ static int writeTableBlock(GrowBuf &out,const char *data,int size)
     {
       if (row % 2)
       {
-        out.addStr("<tr class=\"markdownTableRowOdd\">\n");
+        out.addStr("<tr class=\"markdownTableRowOdd\">");
       }
       else
       {
-        out.addStr("<tr class=\"markdownTableRowEven\">\n");
+        out.addStr("<tr class=\"markdownTableRowEven\">");
       }
     }
     else
     {
-      out.addStr("  <tr class=\"markdownTableHead\">\n");
+      out.addStr("  <tr class=\"markdownTableHead\">");
     }
     for (int c = 0; c < columns; c++)
     {
@@ -1900,7 +1913,7 @@ static int writeTableBlock(GrowBuf &out,const char *data,int size)
       }
       // need at least one space on either side of the cell text in
       // order for doxygen to do other formatting
-      out.addStr("> " + cellText + " </" + cellTag + ">\n");
+      out.addStr("> " + cellText + "</" + cellTag + ">");
     }
     cellTag = "td";
     cellClass = "class=\"markdownTableBody";
@@ -1982,7 +1995,7 @@ void writeOneLineHeaderOrRuler(GrowBuf &out,const char *data,int size)
     out.addStr(data,size);
     if (hasLineBreak(data,size))
     {
-      out.addStr("<br>");
+      out.addStr("<br>\n");
     }
   }
 }
@@ -2021,7 +2034,7 @@ static int writeBlockQuote(GrowBuf &out,const char *data,int size)
         out.addStr("<blockquote>\n");
       }
     }
-    else if (level<curLevel) // quote level descreased => add end markers
+    else if (level<curLevel) // quote level decreased => add end markers
     {
       for (l=level;l<curLevel;l++)
       {
@@ -2064,7 +2077,7 @@ static int writeCodeBlock(GrowBuf &out,const char *data,int size,int refIndent)
       emptyLines++;
       i=end;
     }
-    else if (indent>=refIndent+codeBlockIndent) // enough indent to contine the code block
+    else if (indent>=refIndent+codeBlockIndent) // enough indent to continue the code block
     {
       while (emptyLines>0) // write skipped empty lines
       {
@@ -2174,9 +2187,9 @@ static void writeFencedCodeBlock(GrowBuf &out,const char *data,const char *lng,
   {
     out.addStr("{"+lang+"}");
   }
-  out.addStr(data+blockStart,blockEnd-blockStart);
+  addStrEscapeUtf8Nbsp(out,data+blockStart,blockEnd-blockStart);
   out.addStr("\n");
-  out.addStr("@endcode");
+  out.addStr("@endcode\n");
 }
 
 static QCString processQuotations(const QCString &s,int refIndent)
@@ -2470,7 +2483,7 @@ static QCString detab(const QCString &s,int &refIndent)
           while (stop--) out.addChar(' '); 
         }
         break;
-      case '\n': // reset colomn counter
+      case '\n': // reset column counter
         out.addChar(c);
         col=0;
         break;
@@ -2484,7 +2497,7 @@ static QCString detab(const QCString &s,int &refIndent)
           // special handling of the UTF-8 nbsp character 0xc2 0xa0
           if (c == '\xc2' && data[i] == '\xa0')
           {
-            out.addStr("&nbsp;");
+            out.addStr(g_doxy_nsbp);
             i++;
           }
           else
@@ -2561,7 +2574,7 @@ QCString processMarkdown(const QCString &fileName,const int lineNr,Entry *e,cons
   processInline(out,s,s.length());
   out.addChar(0);
   Debug::print(Debug::Markdown,0,"======== Markdown =========\n---- input ------- \n%s\n---- output -----\n%s\n=========\n",qPrint(input),qPrint(out.get()));
-  return out.get();
+  return substitute(out.get(),g_doxy_nsbp,"&nbsp;");
 }
 
 //---------------------------------------------------------------------------
@@ -2575,14 +2588,57 @@ QCString markdownFileNameToId(const QCString &fileName)
   return "md_"+baseName;
 }
 
+//---------------------------------------------------------------------------
 
-void MarkdownFileParser::parseInput(const char *fileName, 
+QCString processMarkdownForCommentBlock(const QCString &comment,
+                                        const QCString &fileName,
+                                        int lineNr)
+{
+  if (!comment.isEmpty() && Doxygen::markdownSupport)
+  {
+    QCString result = processMarkdown(fileName,lineNr,0,comment);
+    const char *p = result.data();
+    if (p)
+    {
+      while (*p==' ')  p++; // skip over spaces
+      while (*p=='\n') p++; // skip over newlines
+      if (qstrncmp(p,"<br>",4)==0) p+=4; // skip over <br>
+    }
+    if (p>result.data())
+    {
+      // strip part of the input
+      result = result.mid(p-result.data());
+    }
+    return result;
+  }
+  else
+  {
+    return comment;
+  }
+}
+
+//---------------------------------------------------------------------------
+
+struct MarkdownOutlineParser::Private
+{
+  CommentScanner commentScanner;
+};
+
+MarkdownOutlineParser::MarkdownOutlineParser() : p(std::make_unique<Private>())
+{
+}
+
+MarkdownOutlineParser::~MarkdownOutlineParser()
+{
+}
+
+void MarkdownOutlineParser::parseInput(const char *fileName, 
                 const char *fileBuf, 
-                Entry *root,
+                const std::shared_ptr<Entry> &root,
                 bool /*sameTranslationUnit*/,
                 QStrList & /*filesInSameTranslationUnit*/)
 {
-  Entry *current = new Entry;
+  std::shared_ptr<Entry> current = std::make_shared<Entry>();
   current->lang = SrcLangExt_Markdown;
   current->fileName = fileName;
   current->docFile  = fileName;
@@ -2590,6 +2646,7 @@ void MarkdownFileParser::parseInput(const char *fileName,
   QCString docs = fileBuf;
   QCString id;
   QCString title=extractPageTitle(docs,id).stripWhiteSpace();
+  if (id.startsWith("autotoc_md")) id = "";
   g_indentLevel=title.isEmpty() ? 0 : -1;
   QCString titleFn = QFileInfo(fileName).baseName().utf8();
   QCString fn      = QFileInfo(fileName).fileName().utf8();
@@ -2626,10 +2683,10 @@ void MarkdownFileParser::parseInput(const char *fileName,
   Protection prot=Public;
   bool needsEntry = FALSE;
   int position=0;
-  QCString processedDocs = preprocessCommentBlock(docs,fileName,lineNr);
-  while (parseCommentBlock(
+  QCString processedDocs = processMarkdownForCommentBlock(docs,fileName,lineNr);
+  while (p->commentScanner.parseCommentBlock(
         this,
-        current,
+        current.get(),
         processedDocs,
         fileName,
         lineNr,
@@ -2643,8 +2700,7 @@ void MarkdownFileParser::parseInput(const char *fileName,
     if (needsEntry)
     {
       QCString docFile = current->docFile;
-      root->addSubEntry(current);
-      current = new Entry;
+      root->moveToSubEntryAndRefresh(current);
       current->lang = SrcLangExt_Markdown;
       current->docFile = docFile;
       current->docLine = lineNr;
@@ -2652,7 +2708,7 @@ void MarkdownFileParser::parseInput(const char *fileName,
   }
   if (needsEntry)
   {
-    root->addSubEntry(current);
+    root->moveToSubEntryAndKeep(current);
   }
 
   // restore setting
@@ -2660,47 +2716,14 @@ void MarkdownFileParser::parseInput(const char *fileName,
   g_indentLevel=0;
 }
 
-void MarkdownFileParser::parseCode(CodeOutputInterface &codeOutIntf,
-               const char *scopeName,
-               const QCString &input,
-               SrcLangExt lang,
-               bool isExampleBlock,
-               const char *exampleName,
-               FileDef *fileDef,
-               int startLine,
-               int endLine,
-               bool inlineFragment,
-               const MemberDef *memberDef,
-               bool showLineNumbers,
-               const Definition *searchCtx,
-               bool collectXRefs
-              )
+void MarkdownOutlineParser::parsePrototype(const char *text)
 {
-  ParserInterface *pIntf = Doxygen::parserManager->getParser("*.cpp");
-  if (pIntf!=this)
+  OutlineParserInterface &intf = Doxygen::parserManager->getOutlineParser("*.cpp");
+  if (&intf!=this)
   {
-    pIntf->parseCode(
-       codeOutIntf,scopeName,input,lang,isExampleBlock,exampleName,
-       fileDef,startLine,endLine,inlineFragment,memberDef,showLineNumbers,
-       searchCtx,collectXRefs);
+    intf.parsePrototype(text);
   }
 }
 
-void MarkdownFileParser::resetCodeParserState()
-{
-  ParserInterface *pIntf = Doxygen::parserManager->getParser("*.cpp");
-  if (pIntf!=this)
-  {
-    pIntf->resetCodeParserState();
-  }
-}
-
-void MarkdownFileParser::parsePrototype(const char *text)
-{
-  ParserInterface *pIntf = Doxygen::parserManager->getParser("*.cpp");
-  if (pIntf!=this)
-  {
-    pIntf->parsePrototype(text);
-  }
-}
+//------------------------------------------------------------------------
 

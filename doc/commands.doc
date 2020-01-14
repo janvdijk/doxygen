@@ -32,7 +32,7 @@ Each argument has a certain range:
     Paragraphs are delimited by a blank line or by a section indicator. Note that 
     {curly} braces are also used for command options, here the braces are mandatory
     and  just 'normal' characters. The starting curly brace has to directly follow
-    the command, so without whitspace.
+    the command, so without whitespace.
 </ul>
 If in addition to the above argument specifiers [square] brackets are used the argument
 is optional, unless they are placed between quotes in that case they are a mandatory
@@ -72,6 +72,7 @@ documentation:
 \refitem cmddetails \\details
 \refitem cmddiafile \\diafile
 \refitem cmddir \\dir
+\refitem cmddocbookinclude \\docbookinclude
 \refitem cmddocbookonly \\docbookonly
 \refitem cmddontinclude \\dontinclude
 \refitem cmddot \\dot
@@ -135,6 +136,7 @@ documentation:
 \refitem cmdline \\line
 \refitem cmdlink \\link
 \refitem cmdmainpage \\mainpage
+\refitem cmdmaninclude \\maninclude
 \refitem cmdmanonly \\manonly
 \refitem cmdmemberof \\memberof
 \refitem cmdmsc \\msc
@@ -175,6 +177,7 @@ documentation:
 \refitem cmdreturn \\return
 \refitem cmdreturns \\returns
 \refitem cmdretval \\retval
+\refitem cmdrtfinclude \\rtfinclude
 \refitem cmdrtfonly \\rtfonly
 \refitem cmdsa \\sa
 \refitem cmdsecreflist \\secreflist
@@ -211,6 +214,7 @@ documentation:
 \refitem cmdvhdlflow \\vhdlflow
 \refitem cmdwarning \\warning
 \refitem cmdweakgroup \\weakgroup
+\refitem cmdxmlinclude \\xmlinclude
 \refitem cmdxmlonly \\xmlonly
 \refitem cmdxrefitem \\xrefitem
 \refitem cmddollar \\\$
@@ -349,7 +353,7 @@ Structural indicators
   \addindex \\showrefby
   When this command is put in a comment block of a function, method or variable,
   then doxygen will generate an overview for that function, method, variable of
-  the, documented, funcions and methods that call / use it.
+  the, documented, functions and methods that call / use it.
   The overview will be generated regardless of the value of
   \ref cfg_referenced_by_relation "REFERENCED_BY_RELATION".
   \note The completeness (and correctness) of the overview depends on the
@@ -849,7 +853,7 @@ Structural indicators
   This command turns a comment block into a header
   definition of a member group. The
   comment block should be followed by a
-  <code>//\@{ ... //\@}</code> block containing the
+  <code>///\@{ ... ///\@}</code> block containing the
   members of the group.
 
   See section \ref memgroup for an example.
@@ -1410,6 +1414,13 @@ contains \c TEST, or \c DEV
   starts the detailed description. You can also start a new paragraph (blank line)
   then the \c \\details command is not needed.
 
+<hr>
+\section cmdnoop \\noop ( text to be ignored )
+
+  \addindex \\noop
+  All the text, including the command, till the end of the line is ignored.
+  The command will most commonly be used in combination with \ref cfg_aliases "ALIASES"
+  to ignore not supported commands that are present for e.g. other processing tools.
 <hr>
 \section cmdelse \\else
 
@@ -2270,8 +2281,8 @@ Commands for displaying examples
   The `option` `lineno` can be used to enable line numbers for the included code if desired.
   The `option` `doc` can be used to treat the file as documentation rather than code.
 
-  \note Some that when using the `{doc}` option,
-       commands like \ref cmdcond "\\cond" and \ref cmdif "\\if" don't work with
+  \note When using the `{doc}` option,
+       some commands like \ref cmdcond "\\cond" and \ref cmdif "\\if" don't work with
        this command due to the moment of parsing.
 
   \note The included documentation should not have comment signs in it as they will appear
@@ -2402,8 +2413,8 @@ Commands for displaying examples
  The `option` `lineno` can be used to enable line numbers for the included code if desired.
  The `option` `doc` can be used to treat the file as documentation rather than code.
 
- \note Some that when using the `{doc}` option,
-       commands like \ref cmdcond "\\cond" and \ref cmdif "\\if" don't work with
+ \note When using the `{doc}` option,
+       some commands like \ref cmdcond "\\cond" and \ref cmdif "\\if" don't work with
        this command due to the moment of parsing.
 
  \note The included documentation should not have comment signs in it as they will appear
@@ -2450,8 +2461,8 @@ Commands for displaying examples
 \section cmdverbinclude \\verbinclude <file-name>
 
   \addindex \\verbinclude
-  This command includes the file \<file-name\> verbatim in the documentation.
-  The command is equivalent to pasting the file in the documentation and
+  This command includes the contents of the file \<file-name\> verbatim in the documentation.
+  The command is equivalent to pasting the contents of the file in the documentation and
   placing \ref cmdverbatim "\\verbatim" and \ref cmdendverbatim "\\endverbatim"
   commands around it.
 
@@ -2462,8 +2473,9 @@ Commands for displaying examples
 \section cmdhtmlinclude \\htmlinclude ["[block]"] <file-name>
 
   \addindex \\htmlinclude
-  This command includes the file \<file-name\> as is in the HTML documentation.
-  The command is equivalent to pasting the file in the documentation and
+  This command includes the contents of the file \<file-name\> as is in the HTML documentation
+  and tagged with `<htmlonly>` in the generated XML output.
+  The command is equivalent to pasting the contents of the file in the documentation and
   placing \ref cmdhtmlonly "\\htmlonly" and \ref cmdendhtmlonly "\\endhtmlonly"
   commands around it.
 
@@ -2483,14 +2495,75 @@ Commands for displaying examples
 \section cmdlatexinclude \\latexinclude <file-name>
 
   \addindex \\latexinclude
-  This command includes the file \<file-name\> as is in the \LaTeX documentation.
-  The command is equivalent to pasting the file in the documentation and
+  This command includes the contents of the file \<file-name\> as is in the \LaTeX documentation
+  and tagged with `<latexonly>` in the generated XML output.
+  The command is equivalent to pasting the contents of the file in the documentation and
   placing \ref cmdlatexonly "\\latexonly" and \ref cmdendlatexonly "\\endlatexonly"
   commands around it.
 
   Files or directories that doxygen should look for can be specified using the
   \ref cfg_example_path "EXAMPLE_PATH" tag of doxygen's configuration file.
 
+  \sa section \ref cmdlatexonly "\\latexonly". 
+<hr>
+
+\section cmdrtfinclude \\rtfinclude <file-name>
+
+  \addindex \\rtfinclude
+  This command includes the contents of the file \<file-name\> as is in the RTF documentation
+  and tagged with `<rtfonly>` in the generated XML output.
+  The command is equivalent to pasting the contents of the file in the documentation and
+  placing \ref cmdrtfonly "\\rtfonly" and \ref cmdendrtfonly "\\endrtfonly"
+  commands around it.
+
+  Files or directories that doxygen should look for can be specified using the
+  \ref cfg_example_path "EXAMPLE_PATH" tag of doxygen's configuration file.
+
+  \sa section \ref cmdrtfonly "\\rtfonly". 
+<hr>
+
+\section cmdmaninclude \\maninclude <file-name>
+
+  \addindex \\maninclude
+  This command includes the contents of the file \<file-name\> as is in the MAN documentation
+  and tagged with `<manonly>` in the generated XML output.
+  The command is equivalent to pasting the contents of the file in the documentation and
+  placing \ref cmdmanonly "\\manonly" and \ref cmdendmanonly "\\endmanonly"
+  commands around it.
+
+  Files or directories that doxygen should look for can be specified using the
+  \ref cfg_example_path "EXAMPLE_PATH" tag of doxygen's configuration file.
+
+  \sa section \ref cmdmanonly "\\manonly". 
+<hr>
+
+\section cmddocbookinclude \\docbookinclude <file-name>
+
+  \addindex \\docbookinclude
+  This command includes the contents of the file \<file-name\> as is in the DocBook documentation
+  and tagged with `<docbookonly>` in the generated XML output.
+  The command is equivalent to pasting the contents of the file in the documentation and
+  placing \ref cmddocbookonly "\\docbookonly" and \ref cmdenddocbookonly "\\enddocbookonly"
+  commands around it.
+
+  Files or directories that doxygen should look for can be specified using the
+  \ref cfg_example_path "EXAMPLE_PATH" tag of doxygen's configuration file.
+
+  \sa section \ref cmddocbookonly "\\docbookonly". 
+<hr>
+
+\section cmdxmlinclude \\xmlinclude <file-name>
+
+  \addindex \\xmlinclude
+  This command includes contents of the the file \<file-name\> as is in the XML documentation.
+  The command is equivalent to pasting the contents of the file in the documentation and
+  placing \ref cmdxmlonly "\\xmlonly" and \ref cmdendxmlonly "\\endxmlonly"
+  commands around it.
+
+  Files or directories that doxygen should look for can be specified using the
+  \ref cfg_example_path "EXAMPLE_PATH" tag of doxygen's configuration file.
+
+  \sa section \ref cmdxmlonly "\\xmlonly". 
 <hr>
 
 \htmlonly</p><center><p>\endhtmlonly
@@ -2592,7 +2665,7 @@ Commands for visual enhancements
   a Python file for instance, the syntax highlight will be done according
   to the Python syntax. 
 
-  If it unclear from the context which language is meant (for instance the
+  If it is unclear from the context which language is meant (for instance the
   comment is in a <code>.txt</code> or <code>.markdown</code> file) then you can also explicitly
   indicate the language, by putting the file extension typically
   that doxygen associated with the language in curly brackets after the
@@ -2690,8 +2763,9 @@ only copy the detailed documentation, not the brief description.
 \section cmddocbookonly \\docbookonly
 
   \addindex \\docbookonly
-  Starts a block of text that will be verbatim included in the
-  generated DocBook documentation only. The block ends with a
+  Starts a block of text that only will be verbatim included in the
+  generated DocBook documentation and tagged with `<docbookonly>` in the generated
+  XML output. The block ends with a
   \ref cmdenddocbookonly "\\enddocbookonly" command.
 
   \sa section \ref cmdmanonly "\\manonly", 
@@ -2783,7 +2857,8 @@ See also the \ref emojisup "emoji support page" for details.
 
   \note The text fragment should only include the part of the message
   sequence chart that is
-  within the <code>msc {...}</code> block.
+  within the <code>msc {...}</code> block (this is different from 
+  \ref cmdmscfile "\\mscfile").
   \note mscgen is now built in into doxygen
 
 Here is an example of the use of the \c \\msc command.
@@ -2936,6 +3011,10 @@ class Receiver
   For a description of the possibilities see the paragraph
   \ref image_sizeindicator "Size indication" with the
   \ref cmdimage "\\image" command.
+
+  \note The text fragment should include the part message of the
+  sequence chart as well as the starting `msc {` and ending `}`
+  (this is different from \ref cmdmsc "\\msc").
 
   \sa section \ref cmdmsc "\\msc".
 
@@ -3130,8 +3209,9 @@ class Receiver
 \section cmdhtmlonly \\htmlonly ["[block]"]
 
   \addindex \\htmlonly
-  Starts a block of text that will be verbatim included in the
-  generated HTML documentation only. The block ends with a
+  Starts a block of text that only will be verbatim included in the
+  generated HTML documentation and tagged with `<htmlonly>` in the generated
+  XML output. The block ends with a
   \ref cmdendhtmlonly "\\endhtmlonly" command.
 
   This command can be used to include HTML code that is too complex
@@ -3186,7 +3266,7 @@ class Receiver
   \anchor image_sizeindicator \par Size indication
   The \c sizeindication can specify the width or height to be used (or a combination).
   The size specifier in \LaTeX (for example `10cm` or
-  `4in` or a symbolic width like `\\textwidth`).
+  `4in` or a symbolic width like `\textwidth`).
 
   Currently only the option `inline` is supported. In case the option `inline` is
   specified the image is placed "in the line", when a caption s present it is shown 
@@ -3209,8 +3289,10 @@ class Receiver
 \endverbatim
 
   \warning The image format for HTML is limited to what your
-           browser supports. For \LaTeX, the image format
-           must be Encapsulated PostScript (eps).
+           browser supports.<br>For \LaTeX, the image format
+           must be supported by the \LaTeX `\includegraphics` command i.e.
+           Encapsulated PostScript (eps), Portable network graphics (png),
+           Joint photographic experts group (jpg / jpeg).
            <br><br>
            Doxygen does not check if the image is in the correct format.
            So \e you have to make sure this is the case!
@@ -3219,8 +3301,9 @@ class Receiver
 \section cmdlatexonly \\latexonly
 
   \addindex \\latexonly
-  Starts a block of text that will be verbatim included in the
-  generated \LaTeX documentation only. The block ends with a
+  Starts a block of text that only will be verbatim included in the
+  generated \LaTeX documentation and tagged with `<latexonly>` in the generated
+  XML output. The block ends with a
   \ref cmdendlatexonly "\\endlatexonly" command.
 
   This command can be used to include \LaTeX code that is too
@@ -3235,15 +3318,17 @@ class Receiver
   \sa sections \ref cmdrtfonly "\\rtfonly",
                \ref cmdxmlonly "\\xmlonly",
                \ref cmdmanonly "\\manonly",
-               \ref cmdhtmlonly "\\htmlonly", and
-               \ref cmdhtmlonly "\\docbookonly".
+               \ref cmdhtmlonly "\\htmlonly",
+               \ref cmddocbookonly "\\docbookonly", and
+               \ref cmdlatexinclude "\\latexinclude".
 
 <hr>
 \section cmdmanonly \\manonly
 
   \addindex \\manonly
-  Starts a block of text that will be verbatim included in the
-  generated MAN documentation only. The block ends with a
+  Starts a block of text that only will be verbatim included in the
+  generated MAN documentation and tagged with `<manonly>` in the generated
+  XML output. The block ends with a
   \ref cmdendmanonly "\\endmanonly" command.
 
   This command can be used to include groff code directly into
@@ -3320,8 +3405,9 @@ class Receiver
 \section cmdrtfonly \\rtfonly
 
   \addindex \\rtfonly
-  Starts a block of text that will be verbatim included in the
-  generated RTF documentation only. The block ends with a
+  Starts a block of text that only will be verbatim included in the
+  generated RTF documentation and tagged with `<rtfonly>` in the generated
+  XML output. The block ends with a
   \ref cmdendrtfonly "\\endrtfonly" command.
 
   This command can be used to include RTF code that is too complex
@@ -3357,8 +3443,8 @@ class Receiver
 \section cmdxmlonly \\xmlonly
 
   \addindex \\xmlonly
-  Starts a block of text that will be verbatim included in the
-  generated XML output only. The block ends with a
+  Starts a block of text that only will be verbatim included in the
+  generated XML output. The block ends with a
   \ref cmdendxmlonly "\\endxmlonly" command.
 
   This command can be used to include custom XML tags.

@@ -49,7 +49,7 @@ void DotClassGraph::addClass(const ClassDef *cd,DotNode *n,int prot,
   {
     className=cd->displayName();
   }
-  //printf("DotClassGraph::addClass(class=`%s',parent=%s,prot=%d,label=%s,dist=%d,usedName=%s,templSpec=%s,base=%d)\n",
+  //printf("DotClassGraph::addClass(class='%s',parent=%s,prot=%d,label=%s,dist=%d,usedName=%s,templSpec=%s,base=%d)\n",
   //                                 className.data(),n->label().data(),prot,label,distance,usedName,templSpec,base);
   DotNode *bn = m_usedNodes->find(className);
   if (bn) // class already inserted
@@ -100,7 +100,7 @@ void DotClassGraph::addClass(const ClassDef *cd,DotNode *n,int prot,
     }
     bn->setDistance(distance);
     m_usedNodes->insert(className,bn);
-    //printf(" add new child node `%s' to %s hidden=%d url=%s\n",
+    //printf(" add new child node '%s' to %s hidden=%d url=%s\n",
     //    className.data(),n->label().data(),cd->isHidden(),tmp_url.data());
 
     buildGraph(cd,bn,base,distance+1);
@@ -253,7 +253,7 @@ void DotClassGraph::buildGraph(const ClassDef *cd,DotNode *n,bool base,int dista
       BaseClassDef *bcd;
       for ( ; (bcd=bcli.current()) ; ++bcli )
       {
-        //printf("-------- inheritance relation %s->%s templ=`%s'\n",
+        //printf("-------- inheritance relation %s->%s templ='%s'\n",
         //            cd->name().data(),bcd->classDef->name().data(),bcd->templSpecifiers.data());
         addClass(bcd->classDef,n,bcd->prot,0,bcd->usedName,
           bcd->templSpecifiers,base,distance); 
@@ -374,7 +374,7 @@ void DotClassGraph::buildGraph(const ClassDef *cd,DotNode *n,bool base,int dista
 
 DotClassGraph::DotClassGraph(const ClassDef *cd,GraphType t)
 {
-  //printf("--------------- DotClassGraph::DotClassGraph `%s'\n",cd->displayName().data());
+  //printf("--------------- DotClassGraph::DotClassGraph '%s'\n",cd->displayName().data());
   m_graphType = t;
   QCString tmp_url="";
   if (cd->isLinkable() && !cd->isHidden()) 
@@ -420,13 +420,18 @@ bool DotClassGraph::isTrivial() const
 
 bool DotClassGraph::isTooBig() const
 {
+  return numNodes()>=DOT_GRAPH_MAX_NODES;
+}
+
+int DotClassGraph::numNodes() const
+{
   int numNodes = 0;
   numNodes+= m_startNode->children() ? m_startNode->children()->count() : 0;
   if (m_graphType==Inheritance)
   {
     numNodes+= m_startNode->parents() ? m_startNode->parents()->count() : 0;
   }
-  return numNodes>=DOT_GRAPH_MAX_NODES;
+  return numNodes;
 }
 
 DotClassGraph::~DotClassGraph()

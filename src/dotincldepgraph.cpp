@@ -29,7 +29,7 @@ void DotInclDepGraph::buildGraph(DotNode *n,const FileDef *fd,int distance)
     {
       const FileDef *bfd = ii->fileDef;
       QCString in = ii->includeName;
-      //printf(">>>> in=`%s' bfd=%p\n",ii->includeName.data(),bfd);
+      //printf(">>>> in='%s' bfd=%p\n",ii->includeName.data(),bfd);
       bool doc=TRUE,src=FALSE;
       if (bfd)
       {
@@ -213,8 +213,12 @@ bool DotInclDepGraph::isTrivial() const
 
 bool DotInclDepGraph::isTooBig() const
 {
-  int numNodes = m_startNode->children() ? m_startNode->children()->count() : 0;
-  return numNodes>=Config_getInt(DOT_GRAPH_MAX_NODES);
+  return numNodes()>=Config_getInt(DOT_GRAPH_MAX_NODES);
+}
+
+int DotInclDepGraph::numNodes() const
+{
+  return m_startNode->children() ? m_startNode->children()->count() : 0;
 }
 
 void DotInclDepGraph::writeXML(FTextStream &t)

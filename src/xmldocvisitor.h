@@ -131,8 +131,6 @@ class XmlDocVisitor : public DocVisitor
     void visitPost(DocXRefItem *);
     void visitPre(DocInternalRef *);
     void visitPost(DocInternalRef *);
-    void visitPre(DocCopy *);
-    void visitPost(DocCopy *);
     void visitPre(DocText *);
     void visitPost(DocText *);
     void visitPre(DocHtmlBlockQuote *);

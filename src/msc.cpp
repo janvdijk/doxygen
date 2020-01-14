@@ -51,7 +51,7 @@ static bool convertMapFile(FTextStream &t,const char *mapName,const QCString rel
     bool isRef = FALSE;
     int numBytes = f.readLine(buf,maxLineLen);
     buf[numBytes-1]='\0';
-    //printf("ReadLine `%s'\n",buf);
+    //printf("ReadLine '%s'\n",buf);
     if (qstrncmp(buf,"rect",4)==0)
     {
       // obtain the url and the coordinates in the order used by graphviz-1.5
@@ -95,7 +95,7 @@ void writeMscGraphFromFile(const char *inFile,const char *outDir,
                            const char *outFile,MscOutputFormat format)
 {
   QCString absOutFile = outDir;
-  absOutFile+=portable_pathSeparator();
+  absOutFile+=Portable::pathSeparator();
   absOutFile+=outFile;
 
   mscgen_format_t msc_format;
@@ -130,12 +130,12 @@ void writeMscGraphFromFile(const char *inFile,const char *outDir,
     QCString epstopdfArgs(maxCmdLine);
     epstopdfArgs.sprintf("\"%s.eps\" --outfile=\"%s.pdf\"",
                          absOutFile.data(),absOutFile.data());
-    portable_sysTimerStart();
-    if (portable_system("epstopdf",epstopdfArgs)!=0)
+    Portable::sysTimerStart();
+    if (Portable::system("epstopdf",epstopdfArgs)!=0)
     {
       err("Problems running epstopdf. Check your TeX installation!\n");
     }
-    portable_sysTimerStop();
+    Portable::sysTimerStop();
   }
 
   Doxygen::indexList->addImageFile(imgName);
