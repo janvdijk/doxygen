@@ -1,6 +1,6 @@
 /*****************************************************************************
  *
- * Copyright (C) 1997-2015 by Dimitri van Heesch.
+ * Copyright (C) 1997-2020 by Dimitri van Heesch.
  *
  * Permission to use, copy, modify, and distribute this software and its
  * documentation under the terms of the GNU General Public License is hereby 
@@ -23,38 +23,34 @@
 /*
  *	includes
  */
+
+#include <map>
+#include <stack>
+#include <string>
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
 #include <ctype.h>
 
-#include <qarray.h>
-#include <qstack.h>
-#include <qregexp.h>
-#include <qfile.h>
+#include <qcstring.h>
 #include <qcstringlist.h>
-#include "commentscan.h"
-#include "scanner.h"
-#include "entry.h"
-#include "doxygen.h"
-#include "message.h"
-#include "config.h"
-#include "util.h"
-#include "index.h"
-#include "defargs.h"
-#include "language.h"
-#include "outputlist.h"
-#include "membergroup.h"
-#include "reflist.h"
-#include "debug.h"
-#include "parserintf.h"
-#include "cite.h"
-#include "markdown.h"
-#include "condparser.h"
-#include "formula.h"
 
-#define YY_NO_INPUT 1
-#define YY_NO_UNISTD_H 1
+#include "cite.h"
+#include "commentscan.h"
+#include "condparser.h"
+#include "config.h"
+#include "debug.h"
+#include "docgroup.h"
+#include "doxygen.h"
+#include "entry.h"
+#include "formula.h"
+#include "language.h"
+#include "message.h"
+#include "parserintf.h"
+#include "reflist.h"
+#include "section.h"
+#include "util.h"
 
 // forward declarations
 static bool handleBrief(yyscan_t yyscanner,const QCString &, const QCStringList &);
@@ -143,220 +139,159 @@ typedef bool (*DocCmdFunc)(yyscan_t yyscanner,const QCString &name, const QCStri
 
 struct DocCmdMap
 {
-  const char *cmdName;
+  DocCmdMap(DocCmdFunc h,bool b) : handler(h), endsBrief(b) {}
   DocCmdFunc handler;
   bool endsBrief;
 };
 
 // map of command to handler function
-static DocCmdMap docCmdMap[] =
+static const std::map< std::string, DocCmdMap > docCmdMap =
 {
   // command name      handler function         ends brief description
-  { "brief",           &handleBrief,            FALSE },
-  { "short",           &handleBrief,            FALSE },
-  { "fn",              &handleFn,               TRUE },
-  { "var",             &handleFn,               TRUE },
-  { "typedef",         &handleFn,               TRUE },
-  { "property",        &handleFn,               TRUE },
-  { "def",             &handleDef,              TRUE },
-  { "overload",        &handleOverload,         FALSE },
-  { "enum",            &handleEnum,             TRUE },
-  { "defgroup",        &handleDefGroup,         TRUE },
-  { "addtogroup",      &handleAddToGroup,       TRUE },
-  { "weakgroup",       &handleWeakGroup,        TRUE },
-  { "namespace",       &handleNamespace,        TRUE },
-  { "package",         &handlePackage,          TRUE },
-  { "class",           &handleClass,            TRUE },
-  { "headerfile",      &handleHeaderFile,       FALSE },
-  { "protocol",        &handleProtocol,         TRUE },
-  { "category",        &handleCategory,         TRUE },
-  { "union",           &handleUnion,            TRUE },
-  { "struct",          &handleStruct,           TRUE },
-  { "interface",       &handleInterface,        TRUE },
-  { "idlexcept",       &handleIdlException,     TRUE },
-  { "page",            &handlePage,             TRUE },
-  { "mainpage",        &handleMainpage,         TRUE },
-  { "file",            &handleFile,             TRUE },
-  { "dir",             &handleDir,              TRUE },
-  { "example",         &handleExample,          FALSE },
-  { "details",         &handleDetails,          TRUE  },
-  { "name",            &handleName,             FALSE },
-  { "todo",            &handleTodo,             FALSE }, // end brief will be done differently
-  { "test",            &handleTest,             FALSE }, // end brief will be done differently
-  { "bug",             &handleBug,              FALSE }, // end brief will be done differently
-  { "deprecated",      &handleDeprecated,       FALSE }, // end brief will be done differently
-  { "xrefitem",        &handleXRefItem,         FALSE }, // end brief will be done differently
-  { "related",         &handleRelated,          TRUE  },
-  { "relates",         &handleRelated,          TRUE  },
-  { "relatedalso",     &handleRelatedAlso,      TRUE  },
-  { "relatesalso",     &handleRelatedAlso,      TRUE  },
-  { "parblock",        &handleParBlock,         TRUE  },
-  { "endparblock",     &handleEndParBlock,      TRUE  },
-  { "refitem",         &handleRefItem,          TRUE  },
-  { "cite",            &handleCite,             FALSE },
-  { "texref",          &handleTexRef,           FALSE },
-  { "subpage",         &handleSubpage,          TRUE  },
-  { "section",         &handleSection,          TRUE  },
-  { "subsection",      &handleSection,          TRUE  },
-  { "subsubsection",   &handleSection,          TRUE  },
-  { "paragraph",       &handleSection,          TRUE  },
-  { "anchor",          &handleAnchor,           TRUE  },
-  { "verbatim",        &handleFormatBlock,      TRUE  },
-  { "latexonly",       &handleFormatBlock,      FALSE },
-  { "htmlonly",        &handleFormatBlock,      FALSE },
-  { "xmlonly",         &handleFormatBlock,      FALSE },
-  { "docbookonly",     &handleFormatBlock,      FALSE },
-  { "rtfonly",         &handleFormatBlock,      FALSE },
-  { "manonly",         &handleFormatBlock,      FALSE },
-  { "dot",             &handleFormatBlock,      TRUE  },
-  { "msc",             &handleFormatBlock,      TRUE  },
-  { "startuml",        &handleFormatBlock,      TRUE  },
-  { "code",            &handleFormatBlock,      TRUE  },
-  { "addindex",        &handleAddIndex,         FALSE },
-  { "if",              &handleIf,               FALSE },
-  { "ifnot",           &handleIfNot,            FALSE },
-  { "elseif",          &handleElseIf,           FALSE },
-  { "else",            &handleElse,             FALSE },
-  { "endif",           &handleEndIf,            FALSE },
-  { "ingroup",         &handleIngroup,          TRUE },
-  { "nosubgrouping",   &handleNoSubGrouping,    FALSE },
-  { "showinitializer", &handleShowInitializer,  FALSE },
-  { "hideinitializer", &handleHideInitializer,  FALSE },
-  { "callgraph",       &handleCallgraph,        FALSE },
-  { "hidecallgraph",   &handleHideCallgraph,    FALSE },
-  { "callergraph",     &handleCallergraph,      FALSE },
-  { "hidecallergraph", &handleHideCallergraph,  FALSE },
-  { "showrefby",       &handleReferencedByRelation,     FALSE },
-  { "hiderefby",       &handleHideReferencedByRelation, FALSE },
-  { "showrefs",        &handleReferencesRelation,       FALSE },
-  { "hiderefs",        &handleHideReferencesRelation,   FALSE },
-  { "internal",        &handleInternal,         TRUE  },
-  { "_linebr",         &handleLineBr,           FALSE },
-  { "static",          &handleStatic,           FALSE },
-  { "pure",            &handlePure,             FALSE },
-  { "private",         &handlePrivate,          FALSE },
-  { "privatesection",  &handlePrivateSection,   FALSE },
-  { "protected",       &handleProtected,        FALSE },
-  { "protectedsection",&handleProtectedSection, FALSE },
-  { "public",          &handlePublic,           FALSE },
-  { "publicsection",   &handlePublicSection,    FALSE },
-  { "tableofcontents", &handleToc,              FALSE },
-  { "inherit",         &handleInherit,          TRUE  },
-  { "extends",         &handleExtends,          TRUE  },
-  { "implements",      &handleExtends,          TRUE  },
-  { "memberof",        &handleMemberOf,         TRUE  },
-  { "arg",             0,                       TRUE  },
-  { "attention",       0,                       TRUE  },
-  { "author",          0,                       TRUE  },
-  { "authors",         0,                       TRUE  },
-  { "copydoc",         &handleCopyDoc,          TRUE  },
-  { "copybrief",       &handleCopyBrief,        FALSE },
-  { "copydetails",     &handleCopyDetails,      TRUE  },
-  { "copyright",       0,                       TRUE  },
-  { "date",            0,                       TRUE  },
-  { "dotfile",         0,                       TRUE  },
-  { "htmlinclude",     0,                       FALSE },
-  { "image",           0,                       TRUE  },
-  { "include",         0,                       TRUE  },
-  { "includelineno",   0,                       TRUE  },
-  { "invariant",       0,                       TRUE  },
-  { "latexinclude",    0,                       FALSE },
-  { "li",              0,                       TRUE  },
-  { "line",            0,                       TRUE  },
-  { "note",            0,                       TRUE  },
-  { "par",             0,                       TRUE  },
-  { "param",           &handleParam,            TRUE  },
-  { "tparam",          0,                       TRUE  },
-  { "post",            0,                       TRUE  },
-  { "pre",             0,                       TRUE  },
-  { "remark",          0,                       TRUE  },
-  { "remarks",         0,                       TRUE  },
-  { "result",          0,                       TRUE  },
-  { "return",          0,                       TRUE  },
-  { "returns",         0,                       TRUE  },
-  { "exception",       0,                       TRUE  },
-  { "retval",          &handleRetval,           TRUE  },
-  { "sa",              0,                       TRUE  },
-  { "see",             0,                       TRUE  },
-  { "since",           0,                       TRUE  },
-  { "throw",           0,                       TRUE  },
-  { "throws",          0,                       TRUE  },
-  { "until",           0,                       TRUE  },
-  { "verbinclude",     0,                       FALSE },
-  { "version",         0,                       TRUE  },
-  { "warning",         0,                       TRUE  },
-  { "snippet",         0,                       TRUE  },
-  { "snippetlineno",   0,                       TRUE  },
-  { "noop",            &handleNoop,             TRUE },
-  { "rtfinclude",      0,                       FALSE },
-  { "docbookinclude",  0,                       FALSE },
-  { "maninclude",      0,                       FALSE },
-  { "xmlinclude",      0,                       FALSE },
-  { 0, 0, FALSE }
+  { "brief",           { &handleBrief,            FALSE }},
+  { "short",           { &handleBrief,            FALSE }},
+  { "fn",              { &handleFn,               TRUE }},
+  { "var",             { &handleFn,               TRUE }},
+  { "typedef",         { &handleFn,               TRUE }},
+  { "property",        { &handleFn,               TRUE }},
+  { "def",             { &handleDef,              TRUE }},
+  { "overload",        { &handleOverload,         FALSE }},
+  { "enum",            { &handleEnum,             TRUE }},
+  { "defgroup",        { &handleDefGroup,         TRUE }},
+  { "addtogroup",      { &handleAddToGroup,       TRUE }},
+  { "weakgroup",       { &handleWeakGroup,        TRUE }},
+  { "namespace",       { &handleNamespace,        TRUE }},
+  { "package",         { &handlePackage,          TRUE }},
+  { "class",           { &handleClass,            TRUE }},
+  { "headerfile",      { &handleHeaderFile,       FALSE }},
+  { "protocol",        { &handleProtocol,         TRUE }},
+  { "category",        { &handleCategory,         TRUE }},
+  { "union",           { &handleUnion,            TRUE }},
+  { "struct",          { &handleStruct,           TRUE }},
+  { "interface",       { &handleInterface,        TRUE }},
+  { "idlexcept",       { &handleIdlException,     TRUE }},
+  { "page",            { &handlePage,             TRUE }},
+  { "mainpage",        { &handleMainpage,         TRUE }},
+  { "file",            { &handleFile,             TRUE }},
+  { "dir",             { &handleDir,              TRUE }},
+  { "example",         { &handleExample,          FALSE }},
+  { "details",         { &handleDetails,          TRUE  }},
+  { "name",            { &handleName,             FALSE }},
+  { "todo",            { &handleTodo,             FALSE }}, // end brief will be done differently
+  { "test",            { &handleTest,             FALSE }}, // end brief will be done differently
+  { "bug",             { &handleBug,              FALSE }}, // end brief will be done differently
+  { "deprecated",      { &handleDeprecated,       FALSE }}, // end brief will be done differently
+  { "xrefitem",        { &handleXRefItem,         FALSE }}, // end brief will be done differently
+  { "related",         { &handleRelated,          TRUE  }},
+  { "relates",         { &handleRelated,          TRUE  }},
+  { "relatedalso",     { &handleRelatedAlso,      TRUE  }},
+  { "relatesalso",     { &handleRelatedAlso,      TRUE  }},
+  { "parblock",        { &handleParBlock,         TRUE  }},
+  { "endparblock",     { &handleEndParBlock,      TRUE  }},
+  { "refitem",         { &handleRefItem,          TRUE  }},
+  { "cite",            { &handleCite,             FALSE }},
+  { "texref",          { &handleTexRef,           FALSE }},
+  { "subpage",         { &handleSubpage,          TRUE  }},
+  { "section",         { &handleSection,          TRUE  }},
+  { "subsection",      { &handleSection,          TRUE  }},
+  { "subsubsection",   { &handleSection,          TRUE  }},
+  { "paragraph",       { &handleSection,          TRUE  }},
+  { "anchor",          { &handleAnchor,           TRUE  }},
+  { "verbatim",        { &handleFormatBlock,      TRUE  }},
+  { "latexonly",       { &handleFormatBlock,      FALSE }},
+  { "htmlonly",        { &handleFormatBlock,      FALSE }},
+  { "xmlonly",         { &handleFormatBlock,      FALSE }},
+  { "docbookonly",     { &handleFormatBlock,      FALSE }},
+  { "rtfonly",         { &handleFormatBlock,      FALSE }},
+  { "manonly",         { &handleFormatBlock,      FALSE }},
+  { "dot",             { &handleFormatBlock,      TRUE  }},
+  { "msc",             { &handleFormatBlock,      TRUE  }},
+  { "startuml",        { &handleFormatBlock,      TRUE  }},
+  { "code",            { &handleFormatBlock,      TRUE  }},
+  { "addindex",        { &handleAddIndex,         FALSE }},
+  { "if",              { &handleIf,               FALSE }},
+  { "ifnot",           { &handleIfNot,            FALSE }},
+  { "elseif",          { &handleElseIf,           FALSE }},
+  { "else",            { &handleElse,             FALSE }},
+  { "endif",           { &handleEndIf,            FALSE }},
+  { "ingroup",         { &handleIngroup,          TRUE }},
+  { "nosubgrouping",   { &handleNoSubGrouping,    FALSE }},
+  { "showinitializer", { &handleShowInitializer,  FALSE }},
+  { "hideinitializer", { &handleHideInitializer,  FALSE }},
+  { "callgraph",       { &handleCallgraph,        FALSE }},
+  { "hidecallgraph",   { &handleHideCallgraph,    FALSE }},
+  { "callergraph",     { &handleCallergraph,      FALSE }},
+  { "hidecallergraph", { &handleHideCallergraph,  FALSE }},
+  { "showrefby",       { &handleReferencedByRelation,     FALSE }},
+  { "hiderefby",       { &handleHideReferencedByRelation, FALSE }},
+  { "showrefs",        { &handleReferencesRelation,       FALSE }},
+  { "hiderefs",        { &handleHideReferencesRelation,   FALSE }},
+  { "internal",        { &handleInternal,         TRUE  }},
+  { "_linebr",         { &handleLineBr,           FALSE }},
+  { "static",          { &handleStatic,           FALSE }},
+  { "pure",            { &handlePure,             FALSE }},
+  { "private",         { &handlePrivate,          FALSE }},
+  { "privatesection",  { &handlePrivateSection,   FALSE }},
+  { "protected",       { &handleProtected,        FALSE }},
+  { "protectedsection",{ &handleProtectedSection, FALSE }},
+  { "public",          { &handlePublic,           FALSE }},
+  { "publicsection",   { &handlePublicSection,    FALSE }},
+  { "tableofcontents", { &handleToc,              FALSE }},
+  { "inherit",         { &handleInherit,          TRUE  }},
+  { "extends",         { &handleExtends,          TRUE  }},
+  { "implements",      { &handleExtends,          TRUE  }},
+  { "memberof",        { &handleMemberOf,         TRUE  }},
+  { "arg",             { 0,                       TRUE  }},
+  { "attention",       { 0,                       TRUE  }},
+  { "author",          { 0,                       TRUE  }},
+  { "authors",         { 0,                       TRUE  }},
+  { "copydoc",         { &handleCopyDoc,          TRUE  }},
+  { "copybrief",       { &handleCopyBrief,        FALSE }},
+  { "copydetails",     { &handleCopyDetails,      TRUE  }},
+  { "copyright",       { 0,                       TRUE  }},
+  { "date",            { 0,                       TRUE  }},
+  { "dotfile",         { 0,                       TRUE  }},
+  { "htmlinclude",     { 0,                       FALSE }},
+  { "image",           { 0,                       TRUE  }},
+  { "include",         { 0,                       TRUE  }},
+  { "includelineno",   { 0,                       TRUE  }},
+  { "invariant",       { 0,                       TRUE  }},
+  { "latexinclude",    { 0,                       FALSE }},
+  { "li",              { 0,                       TRUE  }},
+  { "line",            { 0,                       TRUE  }},
+  { "note",            { 0,                       TRUE  }},
+  { "par",             { 0,                       TRUE  }},
+  { "param",           { &handleParam,            TRUE  }},
+  { "tparam",          { 0,                       TRUE  }},
+  { "post",            { 0,                       TRUE  }},
+  { "pre",             { 0,                       TRUE  }},
+  { "remark",          { 0,                       TRUE  }},
+  { "remarks",         { 0,                       TRUE  }},
+  { "result",          { 0,                       TRUE  }},
+  { "return",          { 0,                       TRUE  }},
+  { "returns",         { 0,                       TRUE  }},
+  { "exception",       { 0,                       TRUE  }},
+  { "retval",          { &handleRetval,           TRUE  }},
+  { "sa",              { 0,                       TRUE  }},
+  { "see",             { 0,                       TRUE  }},
+  { "since",           { 0,                       TRUE  }},
+  { "throw",           { 0,                       TRUE  }},
+  { "throws",          { 0,                       TRUE  }},
+  { "until",           { 0,                       TRUE  }},
+  { "verbinclude",     { 0,                       FALSE }},
+  { "version",         { 0,                       TRUE  }},
+  { "warning",         { 0,                       TRUE  }},
+  { "snippet",         { 0,                       TRUE  }},
+  { "snippetlineno",   { 0,                       TRUE  }},
+  { "noop",            { &handleNoop,             TRUE }},
+  { "rtfinclude",      { 0,                       FALSE }},
+  { "docbookinclude",  { 0,                       FALSE }},
+  { "maninclude",      { 0,                       FALSE }},
+  { "xmlinclude",      { 0,                       FALSE }}
 };
 
-/** @brief Command mapper.
- *
- *  Maps a command name (as found in a comment block) onto a
- *  specific handler function.
- */
-class DocCmdMapper
-{
-  public:
-    struct Cmd
-    {
-      DocCmdFunc func;
-      bool endsBrief;
-    };
-
-    /** maps a command name to a handler function */
-    static Cmd *map(const char *name)
-    {
-      return instance()->find(name);
-    }
-
-    /** release the singleton */
-    static void freeInstance()
-    {
-      delete s_instance; s_instance=0;
-    }
-
-  private:
-    static DocCmdMapper *instance()
-    {
-      if (s_instance==0) s_instance = new DocCmdMapper;
-      return s_instance;
-    }
-
-    DocCmdMapper() : m_map(113)
-    {
-      m_map.setAutoDelete(TRUE);
-      DocCmdMap *p = docCmdMap;
-      while (p->cmdName)
-      {
-        if (m_map.find(p->cmdName)!=0)
-        {
-          term("DocCmdMapper: command %s already added\n",p->cmdName);
-        }
-        Cmd *cmd = new Cmd;
-        cmd->func = p->handler;
-        cmd->endsBrief = p->endsBrief;
-        m_map.insert(p->cmdName,cmd);
-        p++;
-      }
-    }
-
-    Cmd *find(const char *name)
-    {
-      return m_map.find(name);
-    }
-    QDict<Cmd> m_map;
-    static DocCmdMapper *s_instance;
-};
-
-DocCmdMapper *DocCmdMapper::s_instance=0;
-  
-  
+#define YY_NO_INPUT 1
+#define YY_NO_UNISTD_H 1
 #define YY_NEVER_INTERACTIVE 1
 
 enum XRefKind
@@ -423,7 +358,7 @@ struct commentscanYY_state
   GuardType        guardType = Guard_If;     // kind of guards for conditional section
   bool             enabledSectionFound = FALSE;
   QCString         functionProto;          // function prototype
-  QStack<GuardedSection> guards;             // tracks nested conditional sections (if,ifnot,..)
+  std::stack<GuardedSection> guards;             // tracks nested conditional sections (if,ifnot,..)
   Entry           *current = 0;              // working entry
 
   bool             needNewEntry = FALSE;
@@ -455,6 +390,7 @@ struct commentscanYY_state
   bool             insideParBlock = FALSE;
   bool             inInternalDocs = FALSE;
   int              prevPosition = 0;
+  DocGroup         docGroup;
 };
 
 //-----------------------------------------------------------------------------
@@ -710,20 +646,20 @@ RCSTAG    "$"{ID}":"[^\n$]+"$"
                                             QCString optStr = fullMatch.mid(idx+1,idxEnd-idx-1).stripWhiteSpace();
                                             optList = QCStringList::split(',',optStr);
                                           }
-					  DocCmdMapper::Cmd *cmdPtr = DocCmdMapper::map(cmdName);
-					  if (cmdPtr) // special action is required
+					  auto it = docCmdMap.find(cmdName.data());
+					  if (it!=docCmdMap.end()) // special action is required
 					  {
                                             int i=0;
                                             while (yytext[i]==' ' || yytext[i]=='\t') i++;
 					    yyextra->spaceBeforeCmd = QCString(yytext).left(i);
-					    if (cmdPtr->endsBrief && !(yyextra->inContext==OutputXRef && cmdName=="parblock"))
+					    if (it->second.endsBrief && !(yyextra->inContext==OutputXRef && cmdName=="parblock"))
 					    {
 					      yyextra->briefEndsAtDot=FALSE;
 					      // this command forces the end of brief description
 					      setOutput(yyscanner,OutputDoc);
 					    }
                                             //if (i>0) addOutput(yyscanner,QCString(yytext).left(i)); // removed for bug 689341
-					    if (cmdPtr->func && cmdPtr->func(yyscanner, cmdName, optList))
+					    if (it->second.handler && it->second.handler(yyscanner, cmdName, optList))
 					    {
 					      // implicit split of the comment block into two
 					      // entries. Restart the next block at the start
@@ -741,7 +677,7 @@ RCSTAG    "$"{ID}":"[^\n$]+"$"
 #endif
 					      yyterminate();
 					    }
-					    else if (cmdPtr->func==0)
+					    else if (it->second.handler==0)
 					    {
 					      // command without handler, to be processed
 					      // later by parsedoc.cpp
@@ -790,12 +726,12 @@ RCSTAG    "$"{ID}":"[^\n$]+"$"
   					}
 <Comment>{B}*{CMD}"{"                   { // begin of a group
                                           //yyextra->langParser->handleGroupStartCommand(yyextra->memberGroupHeader);
-                                          Doxygen::docGroup.open(yyextra->current,yyextra->fileName,yyextra->lineNr);
+                                          yyextra->docGroup.open(yyextra->current,yyextra->fileName,yyextra->lineNr);
                                         }
 <Comment>{B}*{CMD}"}"                   { // end of a group
                                           //yyextra->langParser->handleGroupEndCommand();
-                                          Doxygen::docGroup.close(yyextra->current,yyextra->fileName,yyextra->lineNr,TRUE);
-					  Doxygen::docGroup.clearHeader();
+                                          yyextra->docGroup.close(yyextra->current,yyextra->fileName,yyextra->lineNr,TRUE);
+					  yyextra->docGroup.clearHeader();
 					  yyextra->parseMore=TRUE;
                                           yyextra->needNewEntry = TRUE;
 #if YY_FLEX_MAJOR_VERSION>=2 && (YY_FLEX_MINOR_VERSION>5 || (YY_FLEX_MINOR_VERSION==5 && YY_FLEX_SUBMINOR_VERSION>=33))
@@ -1577,16 +1513,16 @@ RCSTAG    "$"{ID}":"[^\n$]+"$"
   					  BEGIN( GuardParam );
   					}
 <SkipGuardedSection>{CMD}"endif"/{NW}	{
-  					  if (yyextra->guards.isEmpty())
+  					  if (yyextra->guards.empty())
 					  {
 					    warn(yyextra->fileName,yyextra->lineNr,
 						"found \\endif without matching start command");
 					  }
 					  else
 					  {
-					    GuardedSection *s = yyextra->guards.pop();
-                                            bool parentVisible = s->parentVisible();
-                                            delete s;
+					    GuardedSection s = yyextra->guards.top();
+                                            yyextra->guards.pop();
+                                            bool parentVisible = s.parentVisible();
                                             if (parentVisible)
                                             {
 					      yyextra->enabledSectionFound=TRUE;
@@ -1595,34 +1531,34 @@ RCSTAG    "$"{ID}":"[^\n$]+"$"
 					  }
   					}
 <SkipGuardedSection>{CMD}"else"/{NW}	{
-  					  if (yyextra->guards.isEmpty())
+  					  if (yyextra->guards.empty())
 					  {
 					    warn(yyextra->fileName,yyextra->lineNr,
 						"found \\else without matching start command");
 					  }
 					  else
 					  {
-					    if (!yyextra->enabledSectionFound && yyextra->guards.top()->parentVisible())
+					    if (!yyextra->enabledSectionFound && yyextra->guards.top().parentVisible())
 					    {
-					      delete yyextra->guards.pop();
-					      yyextra->guards.push(new GuardedSection(TRUE,TRUE));
+					      yyextra->guards.pop();
+					      yyextra->guards.push(GuardedSection(TRUE,TRUE));
 					      yyextra->enabledSectionFound=TRUE;
 					      BEGIN( GuardParamEnd );
 					    }
 					  }
   					}
 <SkipGuardedSection>{CMD}"elseif"/{NW}  {
-  					  if (yyextra->guards.isEmpty())
+  					  if (yyextra->guards.empty())
 					  {
 					    warn(yyextra->fileName,yyextra->lineNr,
 						"found \\elseif without matching start command");
 					  }
 					  else
 					  {
-					    if (!yyextra->enabledSectionFound && yyextra->guards.top()->parentVisible())
+					    if (!yyextra->enabledSectionFound && yyextra->guards.top().parentVisible())
 					    {
                                               yyextra->guardType=Guard_If;
-					      delete yyextra->guards.pop();
+					      yyextra->guards.pop();
 					      BEGIN( GuardParam );
 					    }
 					  }
@@ -1704,10 +1640,10 @@ RCSTAG    "$"{ID}":"[^\n$]+"$"
 <NameParam>{LC}				{ // line continuation
                                           yyextra->lineNr++; 
 					  addOutput(yyscanner,'\n');
-					  Doxygen::docGroup.appendHeader(' ');
+					  yyextra->docGroup.appendHeader(' ');
   					}
 <NameParam>.				{ // ignore other stuff
-					  Doxygen::docGroup.appendHeader(*yytext);
+					  yyextra->docGroup.appendHeader(*yytext);
 					  yyextra->current->name+=*yytext;
   					}
 
@@ -2190,11 +2126,11 @@ static bool handleName(yyscan_t yyscanner,const QCString &, const QCStringList &
   bool stop=makeStructuralIndicator(yyscanner,Entry::MEMBERGRP_SEC);
   if (!stop)
   {
-    Doxygen::docGroup.clearHeader();
+    yyextra->docGroup.clearHeader();
     BEGIN( NameParam );
-    if (!Doxygen::docGroup.isEmpty()) // end of previous member group
+    if (!yyextra->docGroup.isEmpty()) // end of previous member group
     {
-      Doxygen::docGroup.close(yyextra->current,yyextra->fileName,yyextra->lineNr,TRUE,true);
+      yyextra->docGroup.close(yyextra->current,yyextra->fileName,yyextra->lineNr,TRUE,true);
     }
   }
   return stop;
@@ -2427,7 +2363,7 @@ static bool handleIfNot(yyscan_t yyscanner,const QCString &, const QCStringList 
 static bool handleElseIf(yyscan_t yyscanner,const QCString &, const QCStringList &)
 {
   struct yyguts_t *yyg = (struct yyguts_t*)yyscanner;
-  if (yyextra->guards.isEmpty())
+  if (yyextra->guards.empty())
   {
     warn(yyextra->fileName,yyextra->lineNr,
 	"found \\else without matching start command");
@@ -2435,6 +2371,7 @@ static bool handleElseIf(yyscan_t yyscanner,const QCString &, const QCStringList
   else
   {
     yyextra->guardType = yyextra->enabledSectionFound ? Guard_Skip : Guard_If;
+    yyextra->spaceBeforeIf = yyextra->spaceBeforeCmd;
     BEGIN(GuardParam);
   }
   return FALSE;
@@ -2443,13 +2380,14 @@ static bool handleElseIf(yyscan_t yyscanner,const QCString &, const QCStringList
 static bool handleElse(yyscan_t yyscanner,const QCString &, const QCStringList &)
 {
   struct yyguts_t *yyg = (struct yyguts_t*)yyscanner;
-  if (yyextra->guards.isEmpty())
+  if (yyextra->guards.empty())
   {
     warn(yyextra->fileName,yyextra->lineNr,
 	"found \\else without matching start command");
   }
   else
   {
+    yyextra->spaceBeforeIf = yyextra->spaceBeforeCmd;
     BEGIN( SkipGuardedSection );
   }
   return FALSE;
@@ -2458,14 +2396,14 @@ static bool handleElse(yyscan_t yyscanner,const QCString &, const QCStringList &
 static bool handleEndIf(yyscan_t yyscanner,const QCString &, const QCStringList &)
 {
   struct yyguts_t *yyg = (struct yyguts_t*)yyscanner;
-  if (yyextra->guards.isEmpty())
+  if (yyextra->guards.empty())
   {
     warn(yyextra->fileName,yyextra->lineNr,
 	"found \\endif without matching start command");
   }
   else
   {
-    delete yyextra->guards.pop();
+    yyextra->guards.pop();
   }
   yyextra->enabledSectionFound=FALSE;
   if (!yyextra->spaceBeforeCmd.isEmpty()) 
@@ -2791,7 +2729,7 @@ static void initParser(yyscan_t yyscanner)
   struct yyguts_t *yyg = (struct yyguts_t*)yyscanner;
   yyextra->sectionLabel.resize(0);
   yyextra->sectionTitle.resize(0);
-  Doxygen::docGroup.clearHeader();
+  yyextra->docGroup.clearHeader();
   yyextra->insideParBlock = FALSE;
 }
 
@@ -3304,8 +3242,7 @@ bool CommentScanner::parseCommentBlock(/* in */     OutlineParserInterface *pars
   //    isBrief,isAutoBriefOn,lineNr);
 
   initParser(yyscanner);
-  yyextra->guards.setAutoDelete(TRUE);
-  yyextra->guards.clear();
+  yyextra->guards = {};
   yyextra->langParser     = parser;
   yyextra->current        = curEntry;
   if (comment.isEmpty()) return FALSE; // avoid empty strings
@@ -3353,7 +3290,7 @@ bool CommentScanner::parseCommentBlock(/* in */     OutlineParserInterface *pars
     addOutput(yyscanner,getOverloadDocs());
   }
 
-  if (!yyextra->guards.isEmpty())
+  if (!yyextra->guards.empty())
   {
     warn(yyextra->fileName,yyextra->lineNr,"Documentation block ended in the middle of a conditional section!");
   }
@@ -3373,9 +3310,9 @@ bool CommentScanner::parseCommentBlock(/* in */     OutlineParserInterface *pars
   }
 
   if (yyextra->current->section==Entry::MEMBERGRP_SEC &&
-      Doxygen::docGroup.isEmpty()) // @name section but no group started yet
+      yyextra->docGroup.isEmpty()) // @name section but no group started yet
   {
-    Doxygen::docGroup.open(yyextra->current,yyextra->fileName,yyextra->lineNr,true);
+    yyextra->docGroup.open(yyextra->current,yyextra->fileName,yyextra->lineNr,true);
   }
 
   Debug::print(Debug::CommentScan,0,"-----------\nCommentScanner: %s:%d\noutput=[\n"
@@ -3389,7 +3326,7 @@ bool CommentScanner::parseCommentBlock(/* in */     OutlineParserInterface *pars
   checkFormula(yyscanner);
   prot = yyextra->protection;
   
-  Doxygen::docGroup.addDocs(curEntry);
+  yyextra->docGroup.addDocs(curEntry);
 
   newEntryNeeded = yyextra->needNewEntry;
 
@@ -3414,7 +3351,7 @@ static void handleGuard(yyscan_t yyscanner,const QCString &expr)
   CondParser prs;
   bool sectionEnabled=prs.parse(yyextra->fileName,yyextra->lineNr,expr.stripWhiteSpace());
   bool parentEnabled = TRUE;
-  if (!yyextra->guards.isEmpty()) parentEnabled = yyextra->guards.top()->isEnabled();
+  if (!yyextra->guards.empty()) parentEnabled = yyextra->guards.top().isEnabled();
   if (parentEnabled)
   {
     if (
@@ -3422,7 +3359,7 @@ static void handleGuard(yyscan_t yyscanner,const QCString &expr)
         (!sectionEnabled && yyextra->guardType==Guard_IfNot)
        ) // section is visible
     {
-      yyextra->guards.push(new GuardedSection(TRUE,TRUE));
+      yyextra->guards.push(GuardedSection(TRUE,TRUE));
       yyextra->enabledSectionFound=TRUE;
       BEGIN( GuardParamEnd );
     }
@@ -3430,16 +3367,58 @@ static void handleGuard(yyscan_t yyscanner,const QCString &expr)
     {
       if (yyextra->guardType!=Guard_Skip)
       {
-        yyextra->guards.push(new GuardedSection(FALSE,TRUE));
+        yyextra->guards.push(GuardedSection(FALSE,TRUE));
       }
       BEGIN( SkipGuardedSection );
     }
   }
   else // invisible because of parent
   {
-    yyextra->guards.push(new GuardedSection(FALSE,FALSE));
+    yyextra->guards.push(GuardedSection(FALSE,FALSE));
     BEGIN( SkipGuardedSection );
   }
+}
+
+void CommentScanner::initGroupInfo(Entry *entry)
+{
+  struct yyguts_t *yyg = (struct yyguts_t*)p->yyscanner;
+  yyextra->docGroup.initGroupInfo(entry);
+}
+
+void CommentScanner::enterFile(const char *fileName,int lineNr)
+{
+  struct yyguts_t *yyg = (struct yyguts_t*)p->yyscanner;
+  yyextra->docGroup.enterFile(fileName,lineNr);
+}
+
+void CommentScanner::leaveFile(const char *fileName,int lineNr)
+{
+  struct yyguts_t *yyg = (struct yyguts_t*)p->yyscanner;
+  yyextra->docGroup.leaveFile(fileName,lineNr);
+}
+
+void CommentScanner::enterCompound(const char *fileName,int lineNr,const char *name)
+{
+  struct yyguts_t *yyg = (struct yyguts_t*)p->yyscanner;
+  yyextra->docGroup.enterCompound(fileName,lineNr,name);
+}
+
+void CommentScanner::leaveCompound(const char *fileName,int lineNr,const char *name)
+{
+  struct yyguts_t *yyg = (struct yyguts_t*)p->yyscanner;
+  yyextra->docGroup.leaveCompound(fileName,lineNr,name);
+}
+
+void CommentScanner::open(Entry *e,const char *fileName,int lineNr,bool implicit)
+{
+  struct yyguts_t *yyg = (struct yyguts_t*)p->yyscanner;
+  yyextra->docGroup.open(e,fileName,lineNr,implicit);
+}
+
+void CommentScanner::close(Entry *e,const char *fileName,int lineNr,bool foundInline,bool implicit)
+{
+  struct yyguts_t *yyg = (struct yyguts_t*)p->yyscanner;
+  yyextra->docGroup.close(e,fileName,lineNr,foundInline,implicit);
 }
 
 #include "commentscan.l.h"

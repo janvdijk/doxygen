@@ -14,7 +14,6 @@
 #include <qfileinfo.h>
 #include <qcstringlist.h>
 #include "vhdljjparser.h"
-#include "vhdlcode.h"
 #include "vhdldocgen.h"
 #include "message.h"
 #include "config.h"
@@ -94,7 +93,8 @@ void VHDLOutlineParser::Private::parseVhdlfile(const char *fileName,
   vhdlParser=new VhdlParser(tokenManager);
   vhdlParser->setOutlineParser(thisParser);
   vhdlParser->setSharedState(&shared);
-  tokenManager->ReInit(stream,0,vhdlParser);
+  tokenManager->setLexParser(vhdlParser);
+  tokenManager->ReInit(stream,0);
   tokenManager->setErrorHandler(tokErrHandler);
   VhdlErrorHandler *parserErrHandler=new VhdlErrorHandler(fileName);
   vhdlParser->setErrorHandler(parserErrHandler);
@@ -159,9 +159,10 @@ void VHDLOutlineParser::parseInput(const char *fileName,const char *fileBuf,
   p->oldEntry = 0;
   s->current=std::make_shared<Entry>();
   initEntry(s->current.get());
-  Doxygen::docGroup.enterFile(fileName,p->yyLineNr);
+  p->commentScanner.enterFile(fileName,p->yyLineNr);
   p->lineParse.reserve(200);
   p->parseVhdlfile(fileName,fileBuf,inLine);
+  p->commentScanner.leaveFile(fileName,p->yyLineNr);
 
   s->current.reset();
 
@@ -197,7 +198,7 @@ void VHDLOutlineParser::initEntry(Entry *e)
     handleCommentBlock(p->str_doc.doc,p->str_doc.brief);
     p->iDocLine=-1;
   }
-  Doxygen::docGroup.initGroupInfo(e);
+  p->commentScanner.initGroupInfo(e);
 }
 
 void VHDLOutlineParser::newEntry()

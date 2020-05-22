@@ -87,6 +87,7 @@
 #include "portable.h"
 #include "vhdljjparser.h"
 #include "vhdldocgen.h"
+#include "vhdlcode.h"
 #include "eclipsehelp.h"
 #include "cite.h"
 #include "markdown.h"
@@ -174,7 +175,6 @@ QCString         Doxygen::spaces;
 bool             Doxygen::generatingXmlOutput = FALSE;
 bool             Doxygen::markdownSupport = TRUE;
 GenericsSDict   *Doxygen::genericsDict;
-DocGroup         Doxygen::docGroup;
 Preprocessor    *Doxygen::preprocessor = 0;
 
 // locally accessible globals
@@ -2041,7 +2041,7 @@ static MemberDef *addVariableToClass(
       }
       else
       {
-        def=type+" "+name+root->args;
+        def=type+" "+name+args;
       }
     }
     else
@@ -2614,11 +2614,13 @@ static void addVariable(const Entry *root,int isFuncPtr=-1)
       type=name;
       static const QRegExp reName("[a-z_A-Z][a-z_A-Z0-9]*");
       int l=0;
+      int j=0;
       int i=args.isEmpty() ? -1 : reName.match(args,0,&l);
       if (i!=-1)
       {
         name=args.mid(i,l);
-        args=args.mid(i+l,args.find(')',i+l)-i-l);
+        j=args.find(')',i+l)-i-l;
+        if (j >= 0) args=args.mid(i+l,j);
       }
       //printf("new: type='%s' name='%s' args='%s'\n",
       //    type.data(),name.data(),args.data());
