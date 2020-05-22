@@ -2503,7 +2503,7 @@ static bool handleHideReferencesRelation(yyscan_t yyscanner,const QCString &, co
 static bool handleTexRef(yyscan_t yyscanner,const QCString &s, const QCStringList &)
 {
   struct yyguts_t *yyg = (struct yyguts_t*)yyscanner;
-  if (!yyextra->spaceBeforeCmd.isEmpty()) 
+  if (!yyextra->spaceBeforeCmd.isEmpty())
   {
     addOutput(yyscanner,yyextra->spaceBeforeCmd);
     yyextra->spaceBeforeCmd.resize(0);
