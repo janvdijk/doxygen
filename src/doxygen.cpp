@@ -122,7 +122,6 @@ FileNameLinkedMap *Doxygen::inputNameLinkedMap = 0;
 GroupSDict      *Doxygen::groupSDict = 0;
 PageSDict       *Doxygen::pageSDict = 0;
 PageSDict       *Doxygen::exampleSDict = 0;
-TexRefDict      *Doxygen::texrefDict=0;            // database of external latex references
 StringDict       Doxygen::aliasDict(257);          // aliases
 StringSet        Doxygen::inputPaths;
 FileNameLinkedMap    *Doxygen::includeNameLinkedMap = 0;     // include names
@@ -191,9 +190,9 @@ void clearAll()
   Doxygen::mscFileNameLinkedMap->clear();
   Doxygen::diaFileNameLinkedMap->clear();
   Doxygen::tagDestinationDict.clear();
-  delete Doxygen::texrefDict;
   SectionManager::instance().clear();
   CitationManager::instance().clear();
+  TexRefManager::instance().clear();
   delete Doxygen::mainPage; Doxygen::mainPage=0;
   FormulaManager::instance().clear();
 }
@@ -9744,7 +9743,6 @@ void initDoxygen()
   Doxygen::memGrpInfoDict.setAutoDelete(TRUE);
   Doxygen::tagDestinationDict.setAutoDelete(TRUE);
   Doxygen::dirRelations.setAutoDelete(TRUE);
-  Doxygen::texrefDict = new TexRefDict(1000);
   Doxygen::genericsDict = new GenericsSDict;
   Doxygen::indexList = new IndexList;
 
@@ -11178,7 +11176,7 @@ void parseInput()
   g_s.end();
 
   g_s.begin("Resolving texref references...\n");
-  Doxygen::texrefDict->resolveReferences();
+  TexRefManager::instance().resolveReferences();
   g_s.end();
 
   g_s.begin("Counting data structures...\n");

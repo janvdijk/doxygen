@@ -2968,7 +2968,7 @@ static void addTexRef(yyscan_t yyscanner)
     name=yytext+1;
     name=name.left(yyleng-2);
   }
-  Doxygen::texrefDict->insert(yytext);
+  TexRefManager::instance().insert(yytext);
 }
 
 //-----------------------------------------------------------------------------

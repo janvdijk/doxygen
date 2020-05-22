@@ -77,18 +77,10 @@ class CitationManager
 /// Data that describes a label of an external LaTeX document
 struct TexRefInfo
 {
-  TexRefInfo(const char *label_, const char *text_=0, const char *fullText_=0,
-      const char *ref_=0) :
-    label(label_), text(text_), ref(ref_)
-  { }
-
-  TexRefInfo(const TexRefInfo &o)
-  { label=o.label.copy(); text=o.text.copy(); ref=o.ref.copy(); }
-
-  QCString label;
-  QCString text;
-  QCString ref;
-
+    virtual ~TexRefInfo() {}
+    virtual QCString label() const = 0;
+    virtual QCString text() const = 0;
+    virtual QCString ref() const = 0;
 };
 
 /**
@@ -97,11 +89,10 @@ struct TexRefInfo
  * that are retrieved from the LaTeX .aux files that are specified in the
  * LATEX_AUX_FILES configuration option.
  */
-class TexRefDict
+class TexRefManager
 {
   public:
-    /** Create the database, with an expected maximum of \a size entries */
-    TexRefDict(int size);
+    static TexRefManager &instance();
 
     /** Insert a citation identified by \a label into the database */
     void insert(const char *label);
@@ -116,7 +107,10 @@ class TexRefDict
     void clear();
 
   private:
-    QDict<TexRefInfo> m_entries;
+    /** Create the database */
+    TexRefManager();
+    struct Private;
+    std::unique_ptr<Private> p;
 };
 
 

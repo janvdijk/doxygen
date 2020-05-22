@@ -38,8 +38,6 @@ class SearchIndexIntf;
 class ParserManager;
 class QFileInfo;
 class BufStr;
-class CiteDict;
-class TexRefDict;
 class MemberDef;
 class GroupDef;
 class GroupSDict;
@@ -132,7 +130,6 @@ class Doxygen
     static QCString                  objDBFileName;
     static QCString                  entryDBFileName;
     static QCString                  filterDBFileName;
-    static TexRefDict               *texrefDict;
     static bool                      userComments;
     static IndexList                *indexList;
     static int                       subpageNestingLevel;

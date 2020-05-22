@@ -2612,13 +2612,13 @@ DocTexRef::DocTexRef(DocNode *parent,const QCString &target,const QCString &) //
   m_parent = parent;
   //printf("DocTexRef::DocTexRef(target=%s)\n",target.data());
   ASSERT(!target.isEmpty());
-  TexRefInfo *texref = Doxygen::texrefDict->find(target);
+  TexRefInfo *texref = TexRefManager::instance().find(target);
   //printf("texref=%p text='%s' numAuxFiles=%d\n",texref,texref?texref->text.data():"<null>",numAuxFiles);
-  if (numAuxFiles>0 && texref && !texref->text.isEmpty())
+  if (numAuxFiles>0 && texref && !texref->text().isEmpty())
   {
-    m_text         = texref->text;
-    m_ref          = texref->ref;
-    m_label        = texref->label;
+    m_text         = texref->text();
+    m_ref          = texref->ref();
+    m_label        = texref->label();
     //printf("TEXREF ==> m_label=%s,m_text=%s,m_ref=%s\n",
     //    m_label.data(),m_text.data(),m_ref.data());
     return;

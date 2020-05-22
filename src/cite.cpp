@@ -398,29 +398,70 @@ void CitationManager::writeLatexBibliography(FTextStream &t) const
   t << "\n";
 }
 
-TexRefDict::TexRefDict(int size) : m_entries(size, FALSE)
+/// Data that describes a label of an external LaTeX document
+struct TexRefInfoImpl : public TexRefInfo
 {
-  m_entries.setAutoDelete(TRUE);
+  public:
+    TexRefInfoImpl(const char *label, const char *text=0, const char *fullText=0,
+      const char *ref=0)
+    : m_label(label), m_text(text), m_ref(ref)
+    { }
+
+    virtual QCString label() const { return m_label; }
+    virtual QCString text() const { return m_text; }
+    virtual QCString ref() const { return m_ref; }
+
+    void setText(const char *s) { m_text = s; }
+
+  private:
+    QCString m_label;
+    QCString m_text;
+    QCString m_ref;
+};
+
+struct TexRefManager::Private
+{
+  std::map< std::string,std::unique_ptr<TexRefInfoImpl> > entries;
+};
+
+
+TexRefManager &TexRefManager::instance()
+{
+  static TexRefManager tr;
+  return tr;
 }
 
-void TexRefDict::insert(const char *label)
+TexRefManager::TexRefManager() : p(new Private)
 {
-  m_entries.insert(label,new TexRefInfo(label));
 }
 
-TexRefInfo *TexRefDict::find(const char *label) const
+void TexRefManager::insert(const char *label)
 {
-  return label ? m_entries.find(label) : 0;
+  p->entries.insert(
+      std::make_pair(
+        std::string(label),
+        std::make_unique<TexRefInfoImpl>(label)
+      ));
 }
 
-void TexRefDict::clear()
+TexRefInfo *TexRefManager::find(const char *label) const
 {
-  m_entries.clear();
+  auto it = p->entries.find(label);
+  if (it!=p->entries.end())
+  {
+    return it->second.get();
+  }
+  return 0;
 }
 
-void TexRefDict::resolveReferences() const
+void TexRefManager::clear()
 {
-  if (m_entries.isEmpty()) return; // nothing to resolve
+  p->entries.clear();
+}
+
+void TexRefManager::resolveReferences() const
+{
+  if (p->entries.empty()) return; // nothing to resolve
 
   QStrList &texrefDataList = Config_getList(LATEX_AUX_FILES);
   const char *texrefdata = texrefDataList.first();
@@ -446,13 +487,13 @@ void TexRefDict::resolveReferences() const
         f.readBlock(input.rawData(),fi.size());
         f.close();
         input.at(fi.size())='\0';
-        int p=0,s;
+        int pos=0,s;
         //printf("input=[%s]\n",input.data());
-        while ((s=input.find('\n',p))!=-1)
+        while ((s=input.find('\n',pos))!=-1)
         {
-          QCString line = input.mid(p,s-p);
-          //printf("p=%d s=%d line=[%s]\n",p,s,line.data());
-          p=s+1;
+          QCString line = input.mid(pos,s-pos);
+          //printf("pos=%d s=%d line=[%s]\n",pos,s,line.data());
+          pos=s+1;
 
           if (line.find("\\newlabel")!=0)
           {
@@ -465,11 +506,11 @@ void TexRefDict::resolveReferences() const
           {
             QCString label = line.mid(10,j-10);
             QCString text = line.mid(j+3,k-(j+3));
-            TexRefInfo *ci = m_entries.find(label);
-            printf("label='%s' number='%s'\n",label.data(),text.data(),ci);
-            if (ci)
+            auto it = p->entries.find(label.data());
+            printf("label='%s' number='%s'\n",label.data(),text.data());
+            if (it!=p->entries.end())
             {
-              ci->text = text;
+              it->second->setText(text);
             }
           }
         }
