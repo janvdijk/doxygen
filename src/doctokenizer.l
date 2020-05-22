@@ -18,6 +18,9 @@
 
 %option never-interactive
 %option prefix="doctokenizerYY"
+%top{
+#include <stdint.h>
+}
 
 %{
 
@@ -43,6 +46,8 @@
 #define YY_NO_INPUT 1
 #define YY_NO_UNISTD_H 1
 
+#define USE_STATE2STRING 0
+
 #define TK_COMMAND_SEL() (yytext[0] == '@' ? TK_COMMAND_AT : TK_COMMAND_BS)
   
 //--------------------------------------------------------------------------
@@ -50,7 +55,7 @@
 // context for tokenizer phase
 static int g_commentState;
 TokenInfo *g_token = 0;
-static int g_inputPos = 0;
+static yy_size_t g_inputPos = 0;
 static const char *g_inputString;
 static QCString g_fileName;
 static bool g_insidePre;
@@ -60,7 +65,7 @@ static int g_sharpCount=0;
 static const Definition  *g_definition;
 static QCString     g_secLabel;
 static QCString     g_secTitle;
-static SectionInfo::SectionType g_secType;
+static SectionType  g_secType;
 static QCString     g_endMarker;
 static int          g_autoListLevel;
 
@@ -76,7 +81,9 @@ struct DocLexerContext
 
 static QStack<DocLexerContext> g_lexerStack;
 
+#if USE_STATE2STRING
 static const char *stateToString(int state);
+#endif
 //--------------------------------------------------------------------------
 
 void doctokenizerYYpushContext()
@@ -167,11 +174,11 @@ static void processSection()
   {
     warn(g_fileName,yylineno,"Found section/anchor %s without context\n",g_secLabel.data()); 
   }
-  SectionInfo *si=0;
-  if ((si=Doxygen::sectionDict->find(g_secLabel)))
+  SectionInfo *si = SectionManager::instance().find(g_secLabel);
+  if (si)
   {
-    si->fileName = file;
-    si->type     = g_secType;
+    si->setFileName(file);
+    si->setType(g_secType);
   }
 }
 
@@ -320,9 +327,9 @@ static QCString stripEmptyLines(const QCString &s)
 #undef  YY_INPUT
 #define YY_INPUT(buf,result,max_size) result=yyread(buf,max_size);
 
-static int yyread(char *buf,int max_size)
+static yy_size_t yyread(char *buf,yy_size_t max_size)
 {
-  int c=0;
+  yy_size_t c=0;
   const char *src=g_inputString+g_inputPos;
   while ( c < max_size && *src ) *buf++ = *src++, c++;
   g_inputPos+=c;
@@ -389,7 +396,7 @@ FUNCARG   "("{FUNCPART}")"({BLANK}*("volatile"|"const"){BLANK})?
 FUNCARG2  "("{FUNCPART}")"({BLANK}*("volatile"|"const"))?
 OPNEW     {BLANK}+"new"({BLANK}*"[]")?
 OPDEL     {BLANK}+"delete"({BLANK}*"[]")?
-OPNORM    {OPNEW}|{OPDEL}|"+"|"-"|"*"|"/"|"%"|"^"|"&"|"|"|"~"|"!"|"="|"<"|">"|"+="|"-="|"*="|"/="|"%="|"^="|"&="|"|="|"<<"|">>"|"<<="|">>="|"=="|"!="|"<="|">="|"&&"|"||"|"++"|"--"|","|"->*"|"->"|"[]"|"()"
+OPNORM    {OPNEW}|{OPDEL}|"+"|"-"|"*"|"/"|"%"|"^"|"&"|"|"|"~"|"!"|"="|"<"|">"|"+="|"-="|"*="|"/="|"%="|"^="|"&="|"|="|"<<"|">>"|"<<="|">>="|"=="|"!="|"<="|">="|"&&"|"||"|"++"|"--"|","|"->*"|"->"|"[]"|"()"|"<=>"
 OPCAST    {BLANK}+[^<(\r\n.,][^(\r\n.,]*
 OPMASK    ({BLANK}*{OPNORM}{FUNCARG})
 OPMASKOPT ({BLANK}*{OPNORM}{FUNCARG}?)|({OPCAST}{FUNCARG})
@@ -632,7 +639,7 @@ REFWORD_NOCV   {FILEMASK}|{LABELID}|{REFWORD2_NOCV}|{REFWORD3}|{REFWORD4_NOCV}
 			 }
 			 return TK_COMMAND_SEL();
   		       }
-<St_Para>{URLPROTOCOL}{URLMASK}/\. { // URL.
+<St_Para>{URLPROTOCOL}{URLMASK}/[,\.] { // URL, or URL.
                          g_token->name=yytext;
 			 g_token->isEMailAddr=FALSE;
 			 return TK_URL;
@@ -1032,7 +1039,7 @@ REFWORD_NOCV   {FILEMASK}|{LABELID}|{REFWORD2_NOCV}|{REFWORD3}|{REFWORD4_NOCV}
                          if (yytext[0] =='"')
                          {
                            g_token->name=yytext+1;
-                           g_token->name=g_token->name.left(yyleng-2);
+                           g_token->name=g_token->name.left(static_cast<uint>(yyleng)-2);
                          }
                          else
                          {
@@ -1173,9 +1180,9 @@ REFWORD_NOCV   {FILEMASK}|{LABELID}|{REFWORD2_NOCV}|{REFWORD3}|{REFWORD4_NOCV}
   		       }
 <St_Param>[^ \t\n,@\\]+  {
   			 g_token->name = yytext;
-                         if (g_token->name.at(yyleng-1)==':')
+                         if (g_token->name.at(static_cast<uint>(yyleng)-1)==':')
                          {
-                           g_token->name=g_token->name.left(yyleng-1);
+                           g_token->name=g_token->name.left(static_cast<uint>(yyleng)-1);
                          }
 			 return TK_WORD;
                        }
@@ -1251,7 +1258,7 @@ REFWORD_NOCV   {FILEMASK}|{LABELID}|{REFWORD2_NOCV}|{REFWORD3}|{REFWORD4_NOCV}
                                           int e=tag.find(c,s+4);
                                           if (e!=-1) // found matching end
                                           {
-                                            g_secType = SectionInfo::Table;
+                                            g_secType = SectionType::Table;
                                             g_secLabel=tag.mid(s+4,e-s-4); // extract id
                                             processSection();
                                           }
@@ -1259,23 +1266,23 @@ REFWORD_NOCV   {FILEMASK}|{LABELID}|{REFWORD2_NOCV}|{REFWORD3}|{REFWORD4_NOCV}
                                       }
                                     }
 <St_Sections>{CMD}"anchor"{BLANK}+  { 
-                                      g_secType = SectionInfo::Anchor; 
+                                      g_secType = SectionType::Anchor; 
 				      BEGIN(St_SecLabel1); 
                                     }
 <St_Sections>{CMD}"section"{BLANK}+ { 
-                                      g_secType = SectionInfo::Section; 
+                                      g_secType = SectionType::Section; 
                                       BEGIN(St_SecLabel2); 
                                     }
 <St_Sections>{CMD}"subsection"{BLANK}+ { 
-                                      g_secType = SectionInfo::Subsection; 
+                                      g_secType = SectionType::Subsection; 
                                       BEGIN(St_SecLabel2); 
                                     }
 <St_Sections>{CMD}"subsubsection"{BLANK}+ { 
-                                      g_secType = SectionInfo::Subsubsection; 
+                                      g_secType = SectionType::Subsubsection; 
                                       BEGIN(St_SecLabel2); 
                                     }
 <St_Sections>{CMD}"paragraph"{BLANK}+ { 
-                                      g_secType = SectionInfo::Paragraph; 
+                                      g_secType = SectionType::Paragraph; 
                                       BEGIN(St_SecLabel2); 
                                     }
 <St_Sections>{CMD}"verbatim"/[^a-z_A-Z0-9]  {
@@ -1639,4 +1646,6 @@ void doctokenizerYYendAutoList()
 //  return retval;
 //}
 
+#if USE_STATE2STRING
 #include "doctokenizer.l.h"
+#endif

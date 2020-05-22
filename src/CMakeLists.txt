@@ -107,7 +107,6 @@ set(LEX_FILES scanner
     fortranscanner
     fortrancode
     vhdlcode
-    tclscanner
     pre
     declinfo
     defargs
@@ -143,25 +142,22 @@ add_library(doxycfg STATIC
     ${GENERATED_SRC}/configimpl.l.h
     ${GENERATED_SRC}/configoptions.cpp
     ${GENERATED_SRC}/configvalues.cpp
+    ${GENERATED_SRC}/settings.h
     portable.cpp
     portable_c.c
+    ftextstream.cpp
+    message.cpp
+    debug.cpp
 )
 
-add_library(_doxygen STATIC
-    # custom generated files
-    ${GENERATED_SRC}/lang_cfg.h
-    ${GENERATED_SRC}/settings.h
-    ${GENERATED_SRC}/layout_default.xml.h
-    ${GENERATED_SRC}/ce_parse.h
-    ${GENERATED_SRC}/configvalues.h
-    ${GENERATED_SRC}/resources.cpp
+add_library(doxymain STATIC
     # generated for/by flex/bison
     #${LEX_FILES_H} #unfortunately doesn't work in older versions of CMake (like 3.6.2)
     #${LEX_FILES_CPP} #unfortunately doesn't work in older versions of CMake (like 3.6.2)
     ${GENERATED_SRC}/code.l.h
     ${GENERATED_SRC}/commentcnv.l.h
     ${GENERATED_SRC}/commentscan.l.h
-    ${GENERATED_SRC}/configimpl.l.h
+    ${GENERATED_SRC}/constexp.cpp
     ${GENERATED_SRC}/constexp.l.h
     ${GENERATED_SRC}/declinfo.l.h
     ${GENERATED_SRC}/defargs.l.h
@@ -173,14 +169,11 @@ add_library(_doxygen STATIC
     ${GENERATED_SRC}/pyscanner.l.h
     ${GENERATED_SRC}/scanner.l.h
     ${GENERATED_SRC}/sqlcode.l.h
-    ${GENERATED_SRC}/tclscanner.l.h
     ${GENERATED_SRC}/vhdlcode.l.h
     ${GENERATED_SRC}/xmlcode.l.h
     ${GENERATED_SRC}/code.cpp
     ${GENERATED_SRC}/commentcnv.cpp
     ${GENERATED_SRC}/commentscan.cpp
-    ${GENERATED_SRC}/configimpl.cpp
-    ${GENERATED_SRC}/constexp.cpp
     ${GENERATED_SRC}/declinfo.cpp
     ${GENERATED_SRC}/defargs.cpp
     ${GENERATED_SRC}/doctokenizer.cpp
@@ -191,11 +184,15 @@ add_library(_doxygen STATIC
     ${GENERATED_SRC}/pyscanner.cpp
     ${GENERATED_SRC}/scanner.cpp
     ${GENERATED_SRC}/sqlcode.cpp
-    ${GENERATED_SRC}/tclscanner.cpp
     ${GENERATED_SRC}/vhdlcode.cpp
     ${GENERATED_SRC}/xmlcode.cpp
     #
     ${GENERATED_SRC}/ce_parse.cpp
+    # custom generated files
+    ${GENERATED_SRC}/lang_cfg.h
+    ${GENERATED_SRC}/layout_default.xml.h
+    ${GENERATED_SRC}/ce_parse.h
+    ${GENERATED_SRC}/resources.cpp
     #
     arguments.cpp
     cite.cpp
@@ -206,7 +203,6 @@ add_library(_doxygen STATIC
     condparser.cpp
     context.cpp
     cppvalue.cpp
-    debug.cpp
     defgen.cpp
     define.cpp
     definition.cpp
@@ -235,10 +231,8 @@ add_library(_doxygen STATIC
     emoji.cpp
     entry.cpp
     filedef.cpp
-    filename.cpp
     fileparser.cpp
     formula.cpp
-    ftextstream.cpp
     ftvhelp.cpp
     groupdef.cpp
     htags.cpp
@@ -258,11 +252,8 @@ add_library(_doxygen STATIC
     memberdef.cpp
     membergroup.cpp
     memberlist.cpp
-    membername.cpp
-    message.cpp
     msc.cpp
     namespacedef.cpp
-    objcache.cpp
     outputgen.cpp
     outputlist.cpp
     pagedef.cpp
@@ -289,23 +280,31 @@ add_library(_doxygen STATIC
     xmlgen.cpp
 )
 
+# LLVM/clang headers give a lot of warnings with -Wshadow and -Wcast-align so we disable them for
+# the one file that includes them
+
+if (NOT MSVC)
+set_source_files_properties(clangparser.cpp PROPERTIES COMPILE_FLAGS "-Wno-shadow -Wno-cast-align")
+endif()
+
 ##foreach(lex_file ${LEX_FILES})
-##add_library(_doxygen STATIC ${GENERATED_SRC}/${lex_file}.l.h)
+##add_library(doxymain STATIC ${GENERATED_SRC}/${lex_file}.l.h)
 ##endforeach()
 
 add_executable(doxygen main.cpp)
+
 
 if (use_libclang)
     find_package(LLVM REQUIRED CONFIG)
     find_package(Clang REQUIRED CONFIG)
     if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
         cmake_minimum_required(VERSION 3.1)
-        target_compile_features(_doxygen PRIVATE cxx_alignof)
+        target_compile_features(doxymain PRIVATE cxx_alignof)
         target_compile_features(doxygen PRIVATE cxx_alignof)
-        target_compile_options(_doxygen PRIVATE -stdlib=libc++)
+        target_compile_options(doxymain PRIVATE -stdlib=libc++)
         target_compile_options(doxygen PRIVATE -stdlib=libc++)
     elseif (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-        target_compile_options(_doxygen PRIVATE -std=c++11)
+        target_compile_options(doxymain PRIVATE -std=c++11)
         target_compile_options(doxygen PRIVATE -std=c++11)
     endif()
     include_directories(${LLVM_INCLUDE_DIRS})
@@ -316,7 +315,7 @@ if (use_libclang)
 endif()
 
 target_link_libraries(doxygen
-    _doxygen
+    doxymain
     doxycfg
     qtools
     md5
@@ -329,6 +328,12 @@ target_link_libraries(doxygen
     ${CMAKE_THREAD_LIBS_INIT}
     ${EXTRA_LIBS}
     ${CLANG_LIBS}
+    ${DOXYGEN_EXTRA_LINK_OPTIONS}
 )
 
+set_project_warnings(doxycfg)
+set_project_warnings(doxymain)
+set_project_warnings(doxygen)
+
 install(TARGETS doxygen DESTINATION bin)
+

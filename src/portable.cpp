@@ -207,11 +207,6 @@ unsigned int Portable::pid(void)
   return pid;
 }
 
-#if defined(_WIN32) && !defined(__CYGWIN__)
-#else
-  static char **last_environ;
-#endif
-
 #if !defined(_WIN32) || defined(__CYGWIN__)
 void loadEnvironment()
 {
@@ -261,9 +256,6 @@ void Portable::unsetenv(const char *variable)
     SetEnvironmentVariable(variable,0);
 #else
     /* Some systems don't have unsetenv(), so we do it ourselves */
-    size_t len;
-    char **ep;
-
     if (variable == NULL || *variable == '\0' || strchr (variable, '=') != NULL)
     {
       return; // not properly formatted
@@ -348,8 +340,7 @@ char  Portable::pathListSeparator(void)
 #endif
 }
 
-#if defined(_WIN32) && !defined(__CYGWIN__)
-static const bool ExistsOnPath(const char *fileName)
+static bool ExistsOnPath(const char *fileName)
 {
   QFileInfo fi1(fileName);
   if (fi1.exists()) return true;
@@ -380,7 +371,20 @@ static const bool ExistsOnPath(const char *fileName)
   }
   return false;
 }
+
+bool Portable::checkForExecutable(const char *fileName)
+{
+#if defined(_WIN32) && !defined(__CYGWIN__)
+  char *extensions[] = {".bat",".com",".exe"};
+  for (int i = 0; i < sizeof(extensions) / sizeof(*extensions); i++)
+  {
+    if (ExistsOnPath(QCString(fileName) + extensions[i])) return true;
+  }
+  return false;
+#else
+  return ExistsOnPath(fileName);
 #endif
+}
 
 const char *Portable::ghostScriptCommand(void)
 {
@@ -566,4 +570,13 @@ const char *Portable::strnstr(const char *haystack, const char *needle, size_t h
     }
   }
   return 0;
+}
+
+const char *Portable::devNull()
+{
+#if defined(_WIN32) && !defined(__CYGWIN__)
+  return "NUL";
+#else
+  return "/dev/null";
+#endif
 }

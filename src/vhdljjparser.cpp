@@ -13,6 +13,7 @@
 #include <qcstring.h>
 #include <qfileinfo.h>
 #include <qcstringlist.h>
+#include "containers.h"
 #include "vhdljjparser.h"
 #include "vhdldocgen.h"
 #include "message.h"
@@ -63,7 +64,7 @@ struct VHDLOutlineParser::Private
 
   QCString                yyFileName;
   int                     yyLineNr      = 1;
-  std::vector<int>        lineParse;
+  IntVector               lineParse;
   int                     iDocLine      = -1;
   QCString                inputString;
   Entry*                  gBlock        = 0;
@@ -84,7 +85,7 @@ struct VHDLOutlineParser::Private
 };
 
 void VHDLOutlineParser::Private::parseVhdlfile(const char *fileName,
-                                               const char* inputBuffer,bool inLine) 
+                                               const char* inputBuffer,bool inLine)
 {
   JAVACC_STRING_TYPE s =inputBuffer;
   CharStream *stream = new CharStream(s.c_str(), (int)s.size(), 1, 1);
@@ -233,6 +234,23 @@ void VHDLOutlineParser::newEntry()
   initEntry(s->current.get());
 }
 
+static int idCounter;
+
+/** returns a unique id for each record member.
+*
+*  type first_rec is record
+*		RE: data_type;
+*	end;
+*
+* type second_rec is record
+*		RE: data_type;
+*	end;
+*/
+
+QString VHDLOutlineParser::getNameID(){
+ return QString::number(idCounter++,10);
+}
+
 void VHDLOutlineParser::handleFlowComment(const char* doc)
 {
   lineCount(doc);
@@ -251,7 +269,6 @@ void VHDLOutlineParser::handleCommentBlock(const char* doc1,bool brief)
 {
   VhdlParser::SharedState *s = &p->shared;
   QCString doc = doc1;
- // fprintf(stderr,"\n %s",doc.data());
   if (doc.isEmpty()) return;
 
   if (checkMultiComment(doc,p->yyLineNr))
@@ -284,7 +301,6 @@ void VHDLOutlineParser::handleCommentBlock(const char* doc1,bool brief)
   {
     s->current->docLine = p->yyLineNr;
   }
-  //  printf("parseCommentBlock file<%s>\n [%s]\n at line [%d] \n ",yyFileName.data(),doc.data(),p->iDocLine);
 
   int j=doc.find("[plant]");
   if (j>=0)
@@ -296,7 +312,7 @@ void VHDLOutlineParser::handleCommentBlock(const char* doc1,bool brief)
   int position=0;
   bool needsEntry=FALSE;
   QCString processedDoc = processMarkdownForCommentBlock(doc,p->yyFileName,p->iDocLine);
-  while (p->commentScanner.parseCommentBlock(
+   while (p->commentScanner.parseCommentBlock(
         p->thisParser,
         s->current.get(),
         processedDoc, // text
@@ -311,7 +327,6 @@ void VHDLOutlineParser::handleCommentBlock(const char* doc1,bool brief)
         )
       )
   {
-    //printf("parseCommentBlock position=%d [%s]\n",position,doc.data()+position);
     if (needsEntry) newEntry();
   }
   if (needsEntry)
@@ -595,7 +610,7 @@ int VHDLOutlineParser::getLine()
 
 void VHDLOutlineParser::setLineParsed(int tok)
 {
-  if (p->lineParse.size()<=tok) p->lineParse.resize(tok+1);
+  if ((int)p->lineParse.size()<=tok) p->lineParse.resize(tok+1);
   p->lineParse[tok]=p->yyLineNr;
 }
 
@@ -717,8 +732,8 @@ void VHDLOutlineParser::error_skipto(int kind)
   Token *op;
   do
   {
-    Token *t = p->vhdlParser->getNextToken();// step to next token
-    op=p->vhdlParser->getToken(1);           // get first token
+    p->vhdlParser->getNextToken();  // step to next token
+    op=p->vhdlParser->getToken(1);  // get first token
     if (op==0) break;
     //fprintf(stderr,"\n %s",t->image.data());
   } while (op->kind != kind);

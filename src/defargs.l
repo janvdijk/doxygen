@@ -43,6 +43,9 @@
 %option prefix="defargsYY"
 %option reentrant
 %option extra-type="struct defargsYY_state *"
+%top{
+#include <stdint.h>
+}
 
 %{
 
@@ -64,16 +67,18 @@
   
 #define YY_NO_INPUT 1
 #define YY_NO_UNISTD_H 1
+
+#define USE_STATE2STRING 0
   
 /* -----------------------------------------------------------------
  *	state variables
  */
 struct defargsYY_state
 {
-  defargsYY_state(const char *inStr,ArgumentList &al,SrcLangExt l)
+  defargsYY_state(const char *inStr,std::unique_ptr<ArgumentList> &al,SrcLangExt l)
     : inputString(inStr), argList(al), lang(l) {}
   const char      *inputString;
-  ArgumentList    &argList;
+  std::unique_ptr<ArgumentList> &argList;
   SrcLangExt       lang;
   int              inputPosition = 0;
   QCString        *copyArgValue = 0;
@@ -95,8 +100,11 @@ struct defargsYY_state
   QCString         delimiter;
 };
 
+#if USE_STATE2STRING
 static const char *stateToString(int state);
-static int yyread(yyscan_t yyscanner,char *buf,int max_size);
+#endif
+
+static yy_size_t yyread(yyscan_t yyscanner,char *buf,yy_size_t max_size);
 static bool nameIsActuallyPartOfType(QCString &name);
 
 /* -----------------------------------------------------------------
@@ -417,7 +425,7 @@ RAWEND    ")"[^ \t\(\)\\]{0,16}\"
 					      if (alen>2 && a.array.at(0)=='(' && 
 						            a.array.at(alen-1)==')') // fix-up for int *(a[10])
 					      {
-						int i=a.array.find('[')-1;
+						i=a.array.find('[')-1;
 						a.array = a.array.mid(1,alen-2);
 						if (i>0 && a.name.isEmpty())
 						{
@@ -429,7 +437,7 @@ RAWEND    ")"[^ \t\(\)\\]{0,16}\"
 					      //printf("a->type=%s a->name=%s a->defval=\"%s\"\n",a->type.data(),a->name.data(),a->defval.data());
 					      a.docs   = yyextra->curArgDocs.stripWhiteSpace();
 					      //printf("Argument '%s' '%s' adding docs='%s'\n",a->type.data(),a->name.data(),a->docs.data());
-					      yyextra->argList.push_back(a);
+					      yyextra->argList->push_back(a);
 					    }
 					    yyextra->curArgAttrib.resize(0);
 					    yyextra->curArgTypeName.resize(0);
@@ -498,23 +506,23 @@ RAWEND    ")"[^ \t\(\)\\]{0,16}\"
                                           yyextra->curTypeConstraint+=' ';
                                         }
 <FuncQual>"const"		       	{
-					  yyextra->argList.constSpecifier=TRUE;
+					  yyextra->argList->setConstSpecifier(TRUE);
 					}
 <FuncQual>"volatile"		    	{
-					  yyextra->argList.volatileSpecifier=TRUE;
+					  yyextra->argList->setVolatileSpecifier(TRUE);
 					}
 <FuncQual>"&"		    	        {
-                                          yyextra->argList.refQualifier=RefQualifierLValue;
+                                          yyextra->argList->setRefQualifier(RefQualifierLValue);
 					}
 <FuncQual>"&&"		    	        {
-                                          yyextra->argList.refQualifier=RefQualifierRValue;
+                                          yyextra->argList->setRefQualifier(RefQualifierRValue);
 					}
 <FuncQual,TrailingReturn>"="{B}*"0"  	{
-					  yyextra->argList.pureSpecifier=TRUE;
+					  yyextra->argList->setPureSpecifier(TRUE);
                                           BEGIN(FuncQual);
 					}
 <FuncQual>"->"                          { // C++11 trailing return type
-                                          yyextra->argList.trailingReturnType=" -> ";
+                                          yyextra->argList->setTrailingReturnType(" -> ");
                                           BEGIN(TrailingReturn);
                                         }
 <TrailingReturn>{B}/("final"|"override"){B}*  {
@@ -522,10 +530,10 @@ RAWEND    ")"[^ \t\(\)\\]{0,16}\"
                                           BEGIN(FuncQual);
                                         }
 <TrailingReturn>.                       {
-                                          yyextra->argList.trailingReturnType+=yytext;
+                                          yyextra->argList->setTrailingReturnType(yyextra->argList->trailingReturnType()+yytext);
                                         }
 <TrailingReturn>\n                      {
-                                          yyextra->argList.trailingReturnType+=yytext;
+                                          yyextra->argList->setTrailingReturnType(yyextra->argList->trailingReturnType()+yytext);
                                         }
 <FuncQual>")"{B}*"["[^]]*"]"		{ // for functions returning a pointer to an array, 
                                           // i.e. ")[]" in "int (*f(int))[4]" with argsString="(int))[4]"
@@ -569,10 +577,10 @@ RAWEND    ")"[^ \t\(\)\\]{0,16}\"
 /* ----------------------------------------------------------------------------
  */
 
-static int yyread(yyscan_t yyscanner,char *buf,int max_size)
+static yy_size_t yyread(yyscan_t yyscanner,char *buf,yy_size_t max_size)
 {
   struct yyguts_t *yyg = (struct yyguts_t*)yyscanner;
-  int c=0;
+  yy_size_t c=0;
   while( c < max_size && yyextra->inputString[yyextra->inputPosition] )
   {
       *buf = yyextra->inputString[yyextra->inputPosition++] ;
@@ -634,13 +642,13 @@ void
 class KeywordHash
 {
   private:
-    static inline unsigned int hash (const char *str, size_t len);
+    static inline unsigned int hash (const char *str, unsigned int len);
   public:
-    static const char *find (const char *str, size_t len);
+    static const char *find (const char *str, unsigned int len);
 };
 
 inline unsigned int
-KeywordHash::hash (const char *str, size_t len)
+KeywordHash::hash (const char *str, unsigned int len)
 {
   static const unsigned char asso_values[] =
   {
@@ -688,7 +696,7 @@ KeywordHash::hash (const char *str, size_t len)
 }
 
 const char *
-KeywordHash::find (const char *str, size_t len)
+KeywordHash::find (const char *str, unsigned int len)
 {
   static const char * const wordlist[] =
   {
@@ -760,9 +768,10 @@ static bool nameIsActuallyPartOfType(QCString &name)
  *              for complex types are written to
  */
  
-void stringToArgumentList(SrcLangExt lang, const char *argsString,ArgumentList& al,QCString *extraTypeChars)
+std::unique_ptr<ArgumentList> stringToArgumentList(SrcLangExt lang, const char *argsString,QCString *extraTypeChars)
 {
-  if (argsString==0) return;
+  std::unique_ptr<ArgumentList> al = std::make_unique<ArgumentList>();
+  if (argsString==0) return al;
 
   yyscan_t yyscanner;
   defargsYY_state extra(argsString,al,lang);
@@ -776,14 +785,17 @@ void stringToArgumentList(SrcLangExt lang, const char *argsString,ArgumentList& 
   defargsYYrestart( 0, yyscanner );
   BEGIN( Start );
   defargsYYlex(yyscanner);
-  if (yyextra->argList.empty())
+  if (yyextra->argList->empty())
   {
-    yyextra->argList.noParameters = TRUE;
+    yyextra->argList->setNoParameters(TRUE);
   }
   if (extraTypeChars) *extraTypeChars=yyextra->extraTypeChars;
   //printf("stringToArgumentList(%s) result=%s\n",argsString,argListToString(al).data());
   printlex(yy_flex_debug, FALSE, __FILE__, NULL);
   defargsYYlex_destroy(yyscanner);
+  return al;
 }
 
+#if USE_STATE2STRING
 #include "defargs.l.h"
+#endif

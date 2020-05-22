@@ -42,6 +42,9 @@
 %option prefix="fortranscannerYY"
 %option reentrant
 %option extra-type="struct fortranscannerYY_state *"
+%top{
+#include <stdint.h>
+}
 
 %{
 
@@ -141,7 +144,7 @@ struct CommentInPrepass
 {
   int column;
   QCString str;
-  CommentInPrepass(int column, QCString str) : column(column), str(str) {}
+  CommentInPrepass(int col, QCString s) : column(col), str(s) {}
 };
 
 /* -----------------------------------------------------------------
@@ -210,7 +213,7 @@ static QCString extractFromParens(const QCString name);
 static QCString extractBind(const QCString name);
 
 
-static int yyread(yyscan_t yyscanner,char *buf,int max_size);
+static yy_size_t yyread(yyscan_t yyscanner,char *buf,yy_size_t max_size);
 static void startCommentBlock(yyscan_t yyscanner,bool);
 static void handleCommentBlock(yyscan_t yyscanner,const QCString &doc,bool brief);
 static void subrHandleCommentBlock(yyscan_t yyscanner,const QCString &doc,bool brief);
@@ -924,7 +927,7 @@ private                                 {
                                                   if (strt != 0) lft = yyextra->current_root->type.left(strt).stripWhiteSpace();
                                                   if ((yyextra->current_root->type.length() - strt - strlen("function"))!= 0)
                                                   {
-                                                    rght = yyextra->current_root->type.right(yyextra->current_root->type.length() - strt - strlen("function")).stripWhiteSpace();
+                                                    rght = yyextra->current_root->type.right(yyextra->current_root->type.length() - strt - (int)strlen("function")).stripWhiteSpace();
                                                   }
                                                   yyextra->current_root->type = lft;
                                                   if (rght.length() > 0)
@@ -1493,7 +1496,6 @@ void truncatePrepass(yyscan_t yyscanner,int index)
 }
 
 // simplified way to know if this is fixed form
-// duplicate in fortrancode.l
 bool recognizeFixedForm(const char* contents, FortranFormat format)
 {
   int column=0;
@@ -1529,7 +1531,7 @@ bool recognizeFixedForm(const char* contents, FortranFormat format)
         break;
       default:
         if (skipLine) break;
-        if (column==7) return TRUE;
+        if (column>=7) return TRUE;
         return FALSE;
     }
   }
@@ -1564,7 +1566,7 @@ const char* prepassFixedForm(const char* contents, int *hasContLine)
   bool fullCommentLine=TRUE;
   bool artificialComment=FALSE;
   bool spaces=TRUE;
-  int newContentsSize = strlen(contents)+3; // \000, \n (when necessary) and one spare character (to avoid reallocation)
+  int newContentsSize = (int)strlen(contents)+3; // \000, \n (when necessary) and one spare character (to avoid reallocation)
   char* newContents = (char*)malloc(newContentsSize);
   int curLine = 1;
 
@@ -1640,7 +1642,7 @@ const char* prepassFixedForm(const char* contents, int *hasContLine)
            return NULL;
         }
         newContents[j]='\000';
-        newContentsSize = strlen(newContents);
+        newContentsSize = (int)strlen(newContents);
         if (newContents[newContentsSize - 1] != '\n')
         {
           // to be on the safe side
@@ -1783,7 +1785,7 @@ const char* prepassFixedForm(const char* contents, int *hasContLine)
     free(newContents);
     return NULL;
   }
-  newContentsSize = strlen(newContents);
+  newContentsSize = (int)strlen(newContents);
   if (newContents[newContentsSize - 1] != '\n')
   {
     // to be on the safe side
@@ -2313,10 +2315,10 @@ static bool endScope(yyscan_t yyscanner,Entry *scope, bool isGlobalRoot)
   return TRUE;
 }
 
-static int yyread(yyscan_t yyscanner,char *buf,int max_size)
+static yy_size_t yyread(yyscan_t yyscanner,char *buf,yy_size_t max_size)
 {
   struct yyguts_t *yyg = (struct yyguts_t*)yyscanner;
-  int c=0;
+  yy_size_t c=0;
   while ( c < max_size && yyextra->inputString[yyextra->inputPosition] )
   {
     *buf = yyextra->inputString[yyextra->inputPosition++] ;
@@ -2566,7 +2568,7 @@ static void subrHandleCommentBlock(yyscan_t yyscanner,const QCString &doc,bool b
         (directionParam[dir1] == directionParam[SymbolModifiers::IN]))
     {
       // strip direction
-      loc_doc = loc_doc.right(loc_doc.length()-strlen(directionParam[SymbolModifiers::IN]));
+      loc_doc = loc_doc.right(loc_doc.length()-(int)strlen(directionParam[SymbolModifiers::IN]));
       loc_doc.stripWhiteSpace();
       // in case of empty documentation or (now) just name, consider it as no documentation
       if (!loc_doc.isEmpty() && (loc_doc.lower() != yyextra->argName.lower()))
@@ -2578,8 +2580,8 @@ static void subrHandleCommentBlock(yyscan_t yyscanner,const QCString &doc,bool b
     else
     {
       // something different specified, give warning and leave error.
-      warn(yyextra->fileName,yyextra->lineNr, "Routine: " + yyextra->current->name + yyextra->current->args +
-           " inconsistency between intent attribute and documentation for parameter: " + yyextra->argName);
+      warn(yyextra->fileName,yyextra->lineNr, "%s", ("Routine: " + yyextra->current->name + yyextra->current->args +
+           " inconsistency between intent attribute and documentation for parameter: " + yyextra->argName).data());
       handleCommentBlock(yyscanner,QCString("\n\n@param ") + directionParam[dir1] + " " + 
                          yyextra->argName + " " + loc_doc,brief);
     }
@@ -2590,7 +2592,7 @@ static void subrHandleCommentBlock(yyscan_t yyscanner,const QCString &doc,bool b
     if ((directionParam[dir1] == directionParam[SymbolModifiers::NONE_D]) ||
         (directionParam[dir1] == directionParam[SymbolModifiers::OUT]))
     {
-      loc_doc = loc_doc.right(loc_doc.length()-strlen(directionParam[SymbolModifiers::OUT]));
+      loc_doc = loc_doc.right(loc_doc.length()-(int)strlen(directionParam[SymbolModifiers::OUT]));
       loc_doc.stripWhiteSpace();
       if (loc_doc.isEmpty() || (loc_doc.lower() == yyextra->argName.lower()))
       {
@@ -2602,8 +2604,8 @@ static void subrHandleCommentBlock(yyscan_t yyscanner,const QCString &doc,bool b
     }
     else
     {
-      warn(yyextra->fileName,yyextra->lineNr, "Routine: " + yyextra->current->name + yyextra->current->args +
-           " inconsistency between intent attribute and documentation for parameter: " + yyextra->argName);
+      warn(yyextra->fileName,yyextra->lineNr, "%s", ("Routine: " + yyextra->current->name + yyextra->current->args +
+           " inconsistency between intent attribute and documentation for parameter: " + yyextra->argName).data());
       handleCommentBlock(yyscanner,QCString("\n\n@param ") + directionParam[dir1] + " " + 
                          yyextra->argName + " " + loc_doc,brief);
     }
@@ -2614,7 +2616,7 @@ static void subrHandleCommentBlock(yyscan_t yyscanner,const QCString &doc,bool b
     if ((directionParam[dir1] == directionParam[SymbolModifiers::NONE_D]) ||
         (directionParam[dir1] == directionParam[SymbolModifiers::INOUT]))
     {
-      loc_doc = loc_doc.right(loc_doc.length()-strlen(directionParam[SymbolModifiers::INOUT]));
+      loc_doc = loc_doc.right(loc_doc.length()-(int)strlen(directionParam[SymbolModifiers::INOUT]));
       loc_doc.stripWhiteSpace();
       if (!loc_doc.isEmpty() && (loc_doc.lower() != yyextra->argName.lower()))
       {
@@ -2624,8 +2626,8 @@ static void subrHandleCommentBlock(yyscan_t yyscanner,const QCString &doc,bool b
     }
     else
     {
-      warn(yyextra->fileName,yyextra->lineNr, "Routine: " + yyextra->current->name + yyextra->current->args +
-           " inconsistency between intent attribute and documentation for parameter: " + yyextra->argName);
+      warn(yyextra->fileName,yyextra->lineNr, "%s", ("Routine: " + yyextra->current->name + yyextra->current->args +
+           " inconsistency between intent attribute and documentation for parameter: " + yyextra->argName).data());
       handleCommentBlock(yyscanner,QCString("\n\n@param ") + directionParam[dir1] + " " + 
                          yyextra->argName + " " + loc_doc,brief);
     }

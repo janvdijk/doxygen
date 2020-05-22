@@ -17,6 +17,9 @@
 %option prefix="commentscanYY"
 %option reentrant
 %option extra-type="struct commentscanYY_state *"
+%top{
+#include <stdint.h>
+}
 
 %{
 
@@ -51,6 +54,9 @@
 #include "reflist.h"
 #include "section.h"
 #include "util.h"
+#include "reflist.h"
+
+#define USE_STATE2STRING 0
 
 // forward declarations
 static bool handleBrief(yyscan_t yyscanner,const QCString &, const QCStringList &);
@@ -133,7 +139,9 @@ static bool handleEndParBlock(yyscan_t yyscanner,const QCString &, const QCStrin
 static bool handleParam(yyscan_t yyscanner,const QCString &, const QCStringList &);
 static bool handleRetval(yyscan_t yyscanner,const QCString &, const QCStringList &);
 
+#if USE_STATE2STRING
 static const char *stateToString(int state);
+#endif
 
 typedef bool (*DocCmdFunc)(yyscan_t yyscanner,const QCString &name, const QCStringList &optList);
 
@@ -294,6 +302,7 @@ static const std::map< std::string, DocCmdMap > docCmdMap =
 #define YY_NO_UNISTD_H 1
 #define YY_NEVER_INTERACTIVE 1
 
+
 enum XRefKind
 {
   XRef_Item,
@@ -397,13 +406,12 @@ struct commentscanYY_state
 
 static QCString stripQuotes(const char *s);
 static bool getDocSectionName(int s);
-static SectionInfo::SectionType sectionLevelToType(int level);
+static SectionType sectionLevelToType(int level);
 static void stripTrailingWhiteSpace(QCString &s);
 
 static void initParser(yyscan_t yyscanner);
 static bool makeStructuralIndicator(yyscan_t yyscanner,Entry::Sections s);
 static void lineCount(yyscan_t yyscanner);
-static QCString stripQuotes(yyscan_t yyscanner,const char *s);
 static void addXRefItem(yyscan_t yyscanner,
                         const char *listName,const char *itemTitle,
                         const char *listTitle,bool append);
@@ -416,7 +424,7 @@ static inline void addOutput(yyscan_t yyscanner,const char *s);
 static inline void addOutput(yyscan_t yyscanner,char c);
 static void endBrief(yyscan_t yyscanner,bool addToOutput=TRUE);
 static void handleGuard(yyscan_t yyscanner,const QCString &expr);
-static int yyread(yyscan_t yyscanner,char *buf,int max_size);
+static yy_size_t yyread(yyscan_t yyscanner,char *buf,yy_size_t max_size);
 static void addCite(yyscan_t yyscanner);
 static void addTexRef(yyscan_t yyscanner);
 
@@ -735,9 +743,9 @@ RCSTAG    "$"{ID}":"[^\n$]+"$"
 					  yyextra->parseMore=TRUE;
                                           yyextra->needNewEntry = TRUE;
 #if YY_FLEX_MAJOR_VERSION>=2 && (YY_FLEX_MINOR_VERSION>5 || (YY_FLEX_MINOR_VERSION==5 && YY_FLEX_SUBMINOR_VERSION>=33))
-				          yyextra->inputPosition=yyextra->prevPosition + (int)(yy_bp - YY_CURRENT_BUFFER_LVALUE->yy_ch_buf) + strlen(yytext);
+				          yyextra->inputPosition=yyextra->prevPosition + (int)(yy_bp - YY_CURRENT_BUFFER_LVALUE->yy_ch_buf) + (int)strlen(yytext);
 #else
-				          yyextra->inputPosition=yyextra->prevPosition + (int)(yy_bp - yy_current_buffer->yy_ch_buf) + strlen(yytext);
+				          yyextra->inputPosition=yyextra->prevPosition + (int)(yy_bp - yy_current_buffer->yy_ch_buf) + (int)strlen(yytext);
 #endif
 					  yyterminate();
                                         }
@@ -818,8 +826,8 @@ RCSTAG    "$"{ID}":"[^\n$]+"$"
 					  {
 					    // see bug 613024, we need to put the newlines after ending the XRef section.
 					    if (!yyextra->insideParBlock) setOutput(yyscanner,OutputDoc);
-                                            int i;
-                                            for (i=0;i<yyleng;)
+                                            yy_size_t i;
+                                            for (i=0;i<(yy_size_t)yyleng;)
                                             {
                                               if (yytext[i]=='\n') addOutput(yyscanner,'\n'),i++;
                                               else if (strcmp(yytext+i,"\\_linebr")==0) addOutput(yyscanner,'\n'),i+=8;
@@ -828,8 +836,8 @@ RCSTAG    "$"{ID}":"[^\n$]+"$"
 					  }
 					  else if (yyextra->inContext!=OutputBrief)
 					  {
-                                            int i;
-                                            for (i=0;i<yyleng;)
+                                            yy_size_t i;
+                                            for (i=0;i<(yy_size_t)yyleng;)
                                             {
                                               if (yytext[i]=='\n') addOutput(yyscanner,'\n'),i++;
                                               else if (strcmp(yytext+i,"\\_linebr")==0) addOutput(yyscanner,'\n'),i+=8;
@@ -2538,7 +2546,6 @@ static bool handleInternal(yyscan_t yyscanner,const QCString &, const QCStringLi
 
 static bool handleLineBr(yyscan_t yyscanner,const QCString &, const QCStringList &)
 {
-  struct yyguts_t *yyg = (struct yyguts_t*)yyscanner;
   addOutput(yyscanner,'\n');
   return FALSE;
 }
@@ -2817,49 +2824,37 @@ static void addXRefItem(yyscan_t yyscanner,
   if (listName==0) return;
   //printf("addXRefItem(%s,%s,%s,%d)\n",listName,itemTitle,listTitle,append);
 
-  const ListItemInfo *lii=0;
-  RefList *refList = Doxygen::xrefLists->find(listName);
-  if (refList==0) // new list
+  RefList *refList = RefListManager::instance().add(listName,listTitle,itemTitle);
+  RefItem *item = 0;
+  for (RefItem *i : yyextra->current->sli)
   {
-    refList = new RefList(listName,listTitle,itemTitle);
-    Doxygen::xrefLists->insert(listName,refList);
-    //printf("new list!\n");
-  }
-  for (const ListItemInfo &item : yyextra->current->sli)
-  {
-    if (qstrcmp(item.type,listName)==0) 
+    if (i && qstrcmp(i->list()->listName(),listName)==0) 
     {
       //printf("found %s lii->type=%s\n",listName,lii->type);
-      lii = &item;
+      item = i;
       break;
     }
   }
-  if (lii && append) // already found item of same type just before this one
+  if (item && append) // already found item of same type just before this one
   {
     //printf("listName=%s item id = %d existing\n",listName,lii->itemId);
-    RefItem *item = refList->getRefItem(lii->itemId);
-    ASSERT(item!=0);
-    item->text += " <p>";
-    item->text += yyextra->outputXRef;
+    item->setText(item->text() + " <p>" + yyextra->outputXRef);
     //printf("%s: text +=%s\n",listName,item->text.data());
   }
   else // new item
   {
-    int itemId  = refList->addRefItem();
     //printf("listName=%s item id = %d new yyextra->current=%p\n",listName,itemId,yyextra->current);
 
     // if we have already an item from the same list type (e.g. a second @todo)
     // in the same Entry (i.e. lii!=0) then we reuse its link anchor.
-    char anchorLabel[1024];
-    //sprintf(anchorLabel,"_%s%06d",listName,lii ? lii->itemId : itemId);
-    sprintf(anchorLabel,"_%s%06d",listName,itemId);
-    RefItem *item = refList->getRefItem(itemId);
-    ASSERT(item!=0);
-    item->text = yyextra->outputXRef;
-    item->listAnchor = anchorLabel;
-    yyextra->current->addSpecialListItem(listName,itemId);
+    item = refList->add();
+    QCString anchorLabel;
+    anchorLabel.sprintf("_%s%06d",listName,item->id());
+    item->setText(yyextra->outputXRef);
+    item->setAnchor(anchorLabel);
+    yyextra->current->sli.push_back(item);
     QCString cmdString;
-    cmdString.sprintf(" \\xrefitem %s %d.",listName,itemId);
+    cmdString.sprintf(" \\xrefitem %s %d.",listName,item->id());
     if (yyextra->inBody)
     {
       yyextra->current->inbodyDocs += cmdString;
@@ -2868,24 +2863,25 @@ static void addXRefItem(yyscan_t yyscanner,
     {
       yyextra->current->doc += cmdString;
     }
-    SectionInfo *si = Doxygen::sectionDict->find(anchorLabel);
+
+    SectionManager &sm = SectionManager::instance();
+    const SectionInfo *si = sm.find(anchorLabel);
     if (si)
     {
-      if (si->lineNr != -1)
+      if (si->lineNr() != -1)
       {
-        warn(listName,yyextra->lineNr,"multiple use of section label '%s', (first occurrence: %s, line %d)",anchorLabel,si->fileName.data(),si->lineNr);
+        warn(listName,yyextra->lineNr,"multiple use of section label '%s', (first occurrence: %s, line %d)",anchorLabel.data(),si->fileName().data(),si->lineNr());
       }
       else
       {
-        warn(listName,yyextra->lineNr,"multiple use of section label '%s', (first occurrence: %s)",anchorLabel,si->fileName.data());
+        warn(listName,yyextra->lineNr,"multiple use of section label '%s', (first occurrence: %s)",anchorLabel.data(),si->fileName().data());
       }
     }
     else
     {
-      si=new SectionInfo(listName,yyextra->lineNr,anchorLabel,
-                         yyextra->sectionTitle,SectionInfo::Anchor,
-                         yyextra->sectionLevel);
-      Doxygen::sectionDict->append(anchorLabel,si);
+      si = sm.add(anchorLabel,listName,yyextra->lineNr,
+                   yyextra->sectionTitle,SectionType::Anchor,
+                   yyextra->sectionLevel);
       yyextra->current->anchors.push_back(si);
     }
   }
@@ -2901,21 +2897,9 @@ static QCString addFormula(yyscan_t yyscanner)
   struct yyguts_t *yyg = (struct yyguts_t*)yyscanner;
   QCString formLabel;
   QCString fText=yyextra->formulaText.simplifyWhiteSpace();
-  Formula *f=0;
-  if ((f=Doxygen::formulaDict->find(fText))==0)
-  {
-    f = new Formula(fText);
-    Doxygen::formulaList->append(f);
-    Doxygen::formulaDict->insert(fText,f);
-    formLabel.sprintf("\\_form#%d",f->getId());
-    Doxygen::formulaNameDict->insert(formLabel,f);
-  }
-  else
-  {
-    formLabel.sprintf("\\_form#%d",f->getId());
-  }
-  int i;
-  for (i=0;i<yyextra->formulaNewLines;i++) formLabel+="@_fakenl"; // add fake newlines to
+  int id = FormulaManager::instance().addFormula(fText);
+  formLabel.sprintf("\\_form#%d",id);
+  for (int i=0;i<yyextra->formulaNewLines;i++) formLabel+="@_fakenl"; // add fake newlines to
                                                          // keep the warnings 
                                                          // correctly aligned.
   return formLabel;
@@ -2923,25 +2907,26 @@ static QCString addFormula(yyscan_t yyscanner)
 
 //-----------------------------------------------------------------------------
 
-static SectionInfo::SectionType sectionLevelToType(int level)
+static SectionType sectionLevelToType(int level)
 {
-  if (level>=0 && level<5) return (SectionInfo::SectionType)level;
-  return SectionInfo::Anchor;
+  if (level>=0 && level<5) return (SectionType)level;
+  return SectionType::Anchor;
 }
 
 static void addSection(yyscan_t yyscanner)
 {
   struct yyguts_t *yyg = (struct yyguts_t*)yyscanner;
-  SectionInfo *si = Doxygen::sectionDict->find(yyextra->sectionLabel);
+  SectionManager &sm = SectionManager::instance();
+  const SectionInfo *si = sm.find(yyextra->sectionLabel);
   if (si)
   {
-    if (si->lineNr != -1)
+    if (si->lineNr() != -1)
     {
-      warn(yyextra->fileName,yyextra->lineNr,"multiple use of section label '%s' while adding section, (first occurrence: %s, line %d)",yyextra->sectionLabel.data(),si->fileName.data(),si->lineNr);
+      warn(yyextra->fileName,yyextra->lineNr,"multiple use of section label '%s' while adding section, (first occurrence: %s, line %d)",yyextra->sectionLabel.data(),si->fileName().data(),si->lineNr());
     }
     else
     {
-      warn(yyextra->fileName,yyextra->lineNr,"multiple use of section label '%s' while adding section, (first occurrence: %s)",yyextra->sectionLabel.data(),si->fileName.data());
+      warn(yyextra->fileName,yyextra->lineNr,"multiple use of section label '%s' while adding section, (first occurrence: %s)",yyextra->sectionLabel.data(),si->fileName().data());
     }
   }
   else
@@ -2949,14 +2934,12 @@ static void addSection(yyscan_t yyscanner)
     // create a new section element
     yyextra->sectionTitle+=yytext;
     yyextra->sectionTitle=yyextra->sectionTitle.stripWhiteSpace();
-    si = new SectionInfo(yyextra->fileName,yyextra->lineNr,yyextra->sectionLabel,
-                          yyextra->sectionTitle,sectionLevelToType(yyextra->sectionLevel),yyextra->sectionLevel);
+    si = sm.add(yyextra->sectionLabel,yyextra->fileName,yyextra->lineNr,
+                yyextra->sectionTitle,sectionLevelToType(yyextra->sectionLevel),
+                yyextra->sectionLevel);
 
     // add section to this entry
     yyextra->current->anchors.push_back(si);
-
-    // add section to the global dictionary
-    Doxygen::sectionDict->append(yyextra->sectionLabel,si);
   }
 }
 
@@ -2969,9 +2952,9 @@ static void addCite(yyscan_t yyscanner)
   if (yytext[0] =='"')
   {
     name=yytext+1;
-    name=name.left(yyleng-2);
+    name=name.left((int)yyleng-2);
   }
-  Doxygen::citeDict->insert(name.data());
+  CitationManager::instance().insert(name.data());
 }
 
 //-----------------------------------------------------------------------------
@@ -3130,22 +3113,22 @@ static inline void setOutput(yyscan_t yyscanner,OutputContext ctx)
 static void addAnchor(yyscan_t yyscanner,const char *anchor)
 {
   struct yyguts_t *yyg = (struct yyguts_t*)yyscanner;
-  SectionInfo *si = Doxygen::sectionDict->find(anchor);
+  SectionManager &sm = SectionManager::instance();
+  const SectionInfo *si = sm.find(anchor);
   if (si)
   {
-    if (si->lineNr != -1)
+    if (si->lineNr() != -1)
     {
-      warn(yyextra->fileName,yyextra->lineNr,"multiple use of section label '%s' while adding anchor, (first occurrence: %s, line %d)",anchor,si->fileName.data(),si->lineNr);
+      warn(yyextra->fileName,yyextra->lineNr,"multiple use of section label '%s' while adding anchor, (first occurrence: %s, line %d)",anchor,si->fileName().data(),si->lineNr());
     }
     else
     {
-      warn(yyextra->fileName,yyextra->lineNr,"multiple use of section label '%s' while adding anchor, (first occurrence: %s)",anchor,si->fileName.data());
+      warn(yyextra->fileName,yyextra->lineNr,"multiple use of section label '%s' while adding anchor, (first occurrence: %s)",anchor,si->fileName().data());
     }
   }
   else
   {
-    si = new SectionInfo(yyextra->fileName,yyextra->lineNr,anchor,0,SectionInfo::Anchor,0);
-    Doxygen::sectionDict->append(anchor,si);
+    si = sm.add(anchor,yyextra->fileName,yyextra->lineNr,nullptr,SectionType::Anchor,0);
     yyextra->current->anchors.push_back(si);
   }
 }
@@ -3177,18 +3160,18 @@ static void endBrief(yyscan_t yyscanner,bool addToOutput)
   }
 }
 
-static int yyread(yyscan_t yyscanner,char *buf,int max_size)
+static yy_size_t yyread(yyscan_t yyscanner,char *buf,yy_size_t max_size)
 {
   struct yyguts_t *yyg = (struct yyguts_t*)yyscanner;
-    yyextra->prevPosition=yyextra->inputPosition;
-    int c=0;
-    while( c < max_size && yyextra->inputString[yyextra->inputPosition] )
-    {
-	*buf = yyextra->inputString[yyextra->inputPosition++] ;
-	//printf("%d (%c)\n",*buf,*buf);
-	c++; buf++;
-    }
-    return c;
+  yyextra->prevPosition=yyextra->inputPosition;
+  yy_size_t c=0;
+  while( c < max_size && yyextra->inputString[yyextra->inputPosition] )
+  {
+    *buf = yyextra->inputString[yyextra->inputPosition++] ;
+    //printf("%d (%c)\n",*buf,*buf);
+    c++; buf++;
+  }
+  return c;
 }
 
 //----------------------------------------------------------------------------
@@ -3242,7 +3225,7 @@ bool CommentScanner::parseCommentBlock(/* in */     OutlineParserInterface *pars
   //    isBrief,isAutoBriefOn,lineNr);
 
   initParser(yyscanner);
-  yyextra->guards = {};
+  yyextra->guards = std::stack<GuardedSection>();
   yyextra->langParser     = parser;
   yyextra->current        = curEntry;
   if (comment.isEmpty()) return FALSE; // avoid empty strings
@@ -3421,4 +3404,6 @@ void CommentScanner::close(Entry *e,const char *fileName,int lineNr,bool foundIn
   yyextra->docGroup.close(e,fileName,lineNr,foundInline,implicit);
 }
 
+#if USE_STATE2STRING
 #include "commentscan.l.h"
+#endif
