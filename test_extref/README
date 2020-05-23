@@ -1,3 +1,5 @@
+INTRODUCTION AND OVERVIEW:
+
 * Suppose that you are developing a code and external documents
   simultaneously, and that in code comments you wish to refer
   to content from the document that will continuously change
@@ -15,9 +17,10 @@
   for my C++ project with LaTeX documentation. I will work out an
   example in more detail.
 
+
 EXAMPLE: Referring to LaTeX equation and section numbers from C++ comments.
 
-NON-DOXYGEN PARTS:
+ * Non-Doxygen parts:
 
 In this case, the documentation is in a file math_overview.tex,
 which is accompanied by a file math_overview.bib. The LaTeX
@@ -43,7 +46,7 @@ For our present example, file math_overview.dict will look like:
   sec:euler 2
   eqn:euler 3
 
-DOXYGEN PARTS:
+ * Doxygen parts:
 
 Now we run docygen, using the configuration file polar.doxy. That has
 two lines
@@ -70,3 +73,12 @@ the build machinery, which ensures that everything is always uptodate.
 
 Of course, this \dictval command can be used for other purposes as well,
 but what I sketched above is what I needed myself.
+
+
+TO TEST THE EXMAPLE ABOVE:
+
+  1. build and configure this version of doxygen
+  2. cd test_dictionary
+  2. pdflatex math_overview && bibtex math_overview && pdflatex math_overview && pdflatex math_overview
+  3. /path/to/doxygen/build_dir/doxygen polar.doxy
+  4. firefox html/classPolarComplex.html and see the Note on that page
