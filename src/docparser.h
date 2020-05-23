@@ -371,16 +371,15 @@ class DocDictVal : public DocNode
 {
   public:
     DocDictVal(DocNode *parent,const QCString &target,const QCString &context);
-    Kind kind() const            { return Kind_Ref; }
-    QCString ref() const         { return m_ref; }
-    QCString text() const        { return m_text; }
-    QCString label() const       { return m_label; }
+    /// \todo Do we need another Kind-enum for this case
+    Kind kind() const          { return Kind_Ref; }
+    QCString key() const       { return m_key; }
+    QCString value() const     { return m_value; }
     void accept(DocVisitor *v) { v->visit(this); }
 
   private:
-    QCString   m_ref;
-    QCString   m_text;
-    QCString   m_label;
+    QCString   m_key;
+    QCString   m_value;
 };
 
 /** Node representing a style change */

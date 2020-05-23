@@ -257,9 +257,9 @@ class PrintDocVisitor : public DocVisitor
     void visit(DocDictVal *texref)
     {
       indent_leaf();
-      printf("<texref ref=\"%s\" text=\"%s\" />\n",
-             texref->ref().data(),
-             texref->text().data());
+      printf("<texref key=\"%s\" value=\"%s\" />\n",
+             texref->key().data(),
+             texref->value().data());
     }
 
 

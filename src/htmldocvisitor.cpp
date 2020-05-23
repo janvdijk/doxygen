@@ -964,7 +964,7 @@ void HtmlDocVisitor::visit(DocDictVal *texref)
 {
   if (m_hide) return;
   //m_t << "DICTVAL: ";
-  filter(texref->text());
+  filter(texref->value());
 }
 
 //--------------------------------------

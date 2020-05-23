@@ -2614,14 +2614,13 @@ DocDictVal::DocDictVal(DocNode *parent,const QCString &target,const QCString &) 
   const QCString *val = DictionaryManager::instance().find(target);
   if (val)
   {
-    m_label        = target;
-    m_text         = *val;
-    m_ref          = "";
-    //printf("DICTVAL ==> m_label=%s,m_text=%s,m_ref=%s\n",
-    //    m_label.data(),m_text.data(),m_ref.data());
+    m_key        = target;
+    m_value         = *val;
+    //printf("DICTVAL ==> m_key=%s,m_value=%s\n",
+    //    m_key.data(),m_value.data());
     return;
   }
-  m_text = target;
+  m_key = target;
   if (DictionaryManager::instance().size()==0)
   {
     warn_doc_error(g_fileName,doctokenizerYYlineno,"\\dictval command found but the dictionary is empty. Perhaps no aux files were specified via DICTIONARY_FILES?");
