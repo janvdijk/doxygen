@@ -960,7 +960,7 @@ void HtmlDocVisitor::visit(DocCite *cite)
   }
 }
 
-void HtmlDocVisitor::visit(DocTexRef *texref)
+void HtmlDocVisitor::visit(DocDictVal *texref)
 {
   if (m_hide) return;
   //m_t << "TEXREF: ";

@@ -100,7 +100,7 @@ CommandMap cmdMap[] =
   { "skipline",      CMD_SKIPLINE },
   { "xmlonly",       CMD_XMLONLY },
   { "xrefitem",      CMD_XREFITEM },
-  { "texref",        CMD_TEXREF },
+  { "dictval",       CMD_TEXREF },
   { "throw",         CMD_EXCEPTION },
   { "until",         CMD_UNTIL },
   { "verbatim",      CMD_VERBATIM },

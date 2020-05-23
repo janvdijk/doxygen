@@ -18,6 +18,7 @@
 #define CITE_H
 
 #include <memory>
+#include <map>
 
 #include <qcstring.h>
 
@@ -74,43 +75,27 @@ class CitationManager
     std::unique_ptr<Private> p;
 };
 
-/// Data that describes a label of an external LaTeX document
-struct TexRefInfo
-{
-    virtual ~TexRefInfo() {}
-    virtual QCString label() const = 0;
-    virtual QCString text() const = 0;
-    virtual QCString ref() const = 0;
-};
-
 /**
  * @brief TexRef database access class.
  * @details This class provides access do the database of external references
  * that are retrieved from the LaTeX .aux files that are specified in the
- * LATEX_AUX_FILES configuration option.
+ * DICTIONARY_FILES configuration option.
  */
-class TexRefManager
+class DictionaryManager
 {
+    using Entries = std::map<QCString,QCString>;
   public:
-    static TexRefManager &instance();
+    static DictionaryManager &instance();
 
-    /** Insert a citation identified by \a label into the database */
-    void insert(const char *label);
+    /** Return the citation info for a given \a label, or 0 if not found. */
+    const QCString *find(const char *label) const;
 
-    /** Return the citation info for a given \a label */
-    TexRefInfo *find(const char *label) const;
-
-    /** Generate the citations page */
-    void resolveReferences() const;
-
-    /** clears the database */
-    void clear();
-
+    void clear() { m_entries.clear(); }
+    Entries::size_type size() { return m_entries.size(); }
   private:
     /** Create the database */
-    TexRefManager();
-    struct Private;
-    std::unique_ptr<Private> p;
+    DictionaryManager();
+    Entries m_entries;
 };
 
 

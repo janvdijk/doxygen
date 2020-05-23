@@ -98,7 +98,7 @@ static bool handleRefItem(yyscan_t yyscanner,const QCString &, const QCStringLis
 static bool handleSection(yyscan_t yyscanner,const QCString &, const QCStringList &);
 static bool handleAnchor(yyscan_t yyscanner,const QCString &, const QCStringList &);
 static bool handleCite(yyscan_t yyscanner,const QCString &, const QCStringList &);
-static bool handleTexRef(yyscan_t yyscanner,const QCString &, const QCStringList &);
+static bool handleDictVal(yyscan_t yyscanner,const QCString &, const QCStringList &);
 static bool handleFormatBlock(yyscan_t yyscanner,const QCString &, const QCStringList &);
 static bool handleAddIndex(yyscan_t yyscanner,const QCString &, const QCStringList &);
 static bool handleIf(yyscan_t yyscanner,const QCString &, const QCStringList &);
@@ -198,7 +198,7 @@ static const std::map< std::string, DocCmdMap > docCmdMap =
   { "endparblock",     { &handleEndParBlock,      TRUE  }},
   { "refitem",         { &handleRefItem,          TRUE  }},
   { "cite",            { &handleCite,             FALSE }},
-  { "texref",          { &handleTexRef,           FALSE }},
+  { "dictval",         { &handleDictVal,          FALSE }},
   { "subpage",         { &handleSubpage,          TRUE  }},
   { "section",         { &handleSection,          TRUE  }},
   { "subsection",      { &handleSection,          TRUE  }},
@@ -426,7 +426,6 @@ static void endBrief(yyscan_t yyscanner,bool addToOutput=TRUE);
 static void handleGuard(yyscan_t yyscanner,const QCString &expr);
 static yy_size_t yyread(yyscan_t yyscanner,char *buf,yy_size_t max_size);
 static void addCite(yyscan_t yyscanner);
-static void addTexRef(yyscan_t yyscanner);
 
 //-----------------------------------------------------------------------------
 
@@ -519,7 +518,7 @@ RCSTAG    "$"{ID}":"[^\n$]+"$"
 %x      HtmlComment
 %x      SkipLang
 %x	CiteLabel
-%x	TexRefLabel
+%x	DictValLabel
 %x	CopyDoc
 %x      GuardExpr
 %x      CdataSection
@@ -1828,24 +1827,23 @@ RCSTAG    "$"{ID}":"[^\n$]+"$"
 					  BEGIN(Comment);
   					}
 
-  /* ----- handle arguments of the texref command ------- */
+  /* ----- handle arguments of the dictval command ------- */
 
-<TexRefLabel>{TEXREFID}                 { // found argyment
-                                          addTexRef(yyscanner);
+<DictValLabel>{TEXREFID}                { // found argyment
                                           addOutput(yyscanner,yytext);
                                           BEGIN(Comment);
                                         }
-<TexRefLabel>{DOCNL}                    { // missing argument
+<DictValLabel>{DOCNL}                    { // missing argument
                                           warn(yyextra->fileName,yyextra->lineNr,
-                                              "\\texref command has no label"
+                                              "\\dictval command has no label"
                                               );
                                           if (*yytext=='\n') yyextra->lineNr++;
                                           addOutput(yyscanner,'\n');
                                           BEGIN( Comment );
                                         }
-<TexRefLabel>.                          { // invalid character for texref label
+<DictValLabel>.                          { // invalid character for dictval label
                                           warn(yyextra->fileName,yyextra->lineNr,
-                                              "Invalid or missing texref label"
+                                              "Invalid or missing dictval label"
                                               );
                                           BEGIN(Comment);
                                         }
@@ -2508,7 +2506,7 @@ static bool handleHideReferencesRelation(yyscan_t yyscanner,const QCString &, co
   return FALSE;
 }
 
-static bool handleTexRef(yyscan_t yyscanner,const QCString &s, const QCStringList &)
+static bool handleDictVal(yyscan_t yyscanner,const QCString &s, const QCStringList &)
 {
   struct yyguts_t *yyg = (struct yyguts_t*)yyscanner;
   if (!yyextra->spaceBeforeCmd.isEmpty())
@@ -2517,7 +2515,7 @@ static bool handleTexRef(yyscan_t yyscanner,const QCString &s, const QCStringLis
     yyextra->spaceBeforeCmd.resize(0);
   }
   addOutput(yyscanner,"@"+s+" ");
-  BEGIN(TexRefLabel);
+  BEGIN(DictValLabel);
   return FALSE;
 }
 
@@ -2955,20 +2953,6 @@ static void addCite(yyscan_t yyscanner)
     name=name.left((int)yyleng-2);
   }
   CitationManager::instance().insert(name.data());
-}
-
-//-----------------------------------------------------------------------------
-
-static void addTexRef(yyscan_t yyscanner)
-{
-  struct yyguts_t *yyg = (struct yyguts_t*)yyscanner;
-  QCString name=yytext;
-  if (yytext[0] =='"')
-  {
-    name=yytext+1;
-    name=name.left(yyleng-2);
-  }
-  TexRefManager::instance().insert(yytext);
 }
 
 //-----------------------------------------------------------------------------

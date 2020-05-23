@@ -1239,14 +1239,12 @@ FILE_VERSION_FILTER = "cleartool desc -fmt \%Vn"
 ]]>
       </docs>
     </option>
-    <option type='list' id='LATEX_AUX_FILES' format='file'>
+    <option type='list' id='DICTIONARY_FILES' format='file'>
       <docs>
 <![CDATA[
- The \c LATEX_AUX_FILES tag can be used to specify one or more LaTeX \c aux files
- containing the reference definitions. This must be a list of <code>.aux</code> files. The
- <code>.aux</code> extension is automatically appended if omitted.
- See also \ref cmdcite "\\texref" for info how to create references to
- chapters, sections, tables, figures etc. of external \f$\mbox{\LaTeX}\f$ documents.
+ The \c DICTIONARY_FILES tag can be used to specify one or more files containing
+ key value pairs. The first word is the key, the rest of the line is the value.
+ See also \ref cmdcite "\\dictval" for information about the usage of dictionaries.
 ]]>
       </docs>
     </option>

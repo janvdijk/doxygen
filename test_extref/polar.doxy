@@ -100,7 +100,7 @@ SHOW_NAMESPACES        = YES
 FILE_VERSION_FILTER    =
 LAYOUT_FILE            =
 CITE_BIB_FILES         = math_overview
-LATEX_AUX_FILES        = math_overview
+DICTIONARY_FILES       = math_overview.dict
 #---------------------------------------------------------------------------
 # Configuration options related to warning and progress messages
 #---------------------------------------------------------------------------

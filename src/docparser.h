@@ -367,10 +367,10 @@ class DocCite : public DocNode
 };
 
 /** Node representing a reference to an external LaTeX document */
-class DocTexRef : public DocNode
+class DocDictVal : public DocNode
 {
   public:
-    DocTexRef(DocNode *parent,const QCString &target,const QCString &context);
+    DocDictVal(DocNode *parent,const QCString &target,const QCString &context);
     Kind kind() const            { return Kind_Ref; }
     QCString ref() const         { return m_ref; }
     QCString text() const        { return m_text; }

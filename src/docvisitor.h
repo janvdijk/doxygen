@@ -71,7 +71,7 @@ class DocMscFile;
 class DocDiaFile;
 class DocLink;
 class DocCite;
-class DocTexRef;
+class DocDictVal;
 class DocRef;
 class DocFormula;
 class DocSecRefItem;
@@ -116,7 +116,7 @@ class DocVisitor
     virtual void visit(DocIndexEntry *) = 0;
     virtual void visit(DocSimpleSectSep *) = 0;
     virtual void visit(DocCite *) = 0;
-    virtual void visit(DocTexRef *) = 0;
+    virtual void visit(DocDictVal *) = 0;
     /*! @} */
 
     /*! @name Visitor functions for internal nodes 

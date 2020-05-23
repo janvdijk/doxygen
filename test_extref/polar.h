@@ -17,7 +17,7 @@ class PolarComplex
 	 *  and returns the result.
 	 *
 	 *  \note This uses the Euler relation, see equation
-	 *        \texref eqn:euler in section \texref sec:euler
+	 *        \dictval eqn:euler in section \dictval sec:euler
 	 *        in \cite MathOverview.
 	 */
 	std::complex<double> get_cartesian() const;

@@ -192,7 +192,7 @@ void clearAll()
   Doxygen::tagDestinationDict.clear();
   SectionManager::instance().clear();
   CitationManager::instance().clear();
-  TexRefManager::instance().clear();
+  DictionaryManager::instance().clear();
   delete Doxygen::mainPage; Doxygen::mainPage=0;
   FormulaManager::instance().clear();
 }
@@ -11173,10 +11173,6 @@ void parseInput()
 
   g_s.begin("Counting members...\n");
   countMembers();
-  g_s.end();
-
-  g_s.begin("Resolving texref references...\n");
-  TexRefManager::instance().resolveReferences();
   g_s.end();
 
   g_s.begin("Counting data structures...\n");

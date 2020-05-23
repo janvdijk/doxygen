@@ -398,90 +398,41 @@ void CitationManager::writeLatexBibliography(FTextStream &t) const
   t << "\n";
 }
 
-/// Data that describes a label of an external LaTeX document
-struct TexRefInfoImpl : public TexRefInfo
+DictionaryManager &DictionaryManager::instance()
 {
-  public:
-    TexRefInfoImpl(const char *label, const char *text=0, const char *fullText=0,
-      const char *ref=0)
-    : m_label(label), m_text(text), m_ref(ref)
-    { }
-
-    virtual QCString label() const { return m_label; }
-    virtual QCString text() const { return m_text; }
-    virtual QCString ref() const { return m_ref; }
-
-    void setText(const char *s) { m_text = s; }
-
-  private:
-    QCString m_label;
-    QCString m_text;
-    QCString m_ref;
-};
-
-struct TexRefManager::Private
-{
-  std::map< std::string,std::unique_ptr<TexRefInfoImpl> > entries;
-};
-
-
-TexRefManager &TexRefManager::instance()
-{
-  static TexRefManager tr;
+  static DictionaryManager tr;
   return tr;
 }
 
-TexRefManager::TexRefManager() : p(new Private)
+const QCString *DictionaryManager::find(const char *label) const
 {
-}
-
-void TexRefManager::insert(const char *label)
-{
-  p->entries.insert(
-      std::make_pair(
-        std::string(label),
-        std::make_unique<TexRefInfoImpl>(label)
-      ));
-}
-
-TexRefInfo *TexRefManager::find(const char *label) const
-{
-  auto it = p->entries.find(label);
-  if (it!=p->entries.end())
+  auto it = m_entries.find(label);
+  if (it!=m_entries.end())
   {
-    return it->second.get();
+    return &it->second;
   }
   return 0;
 }
 
-void TexRefManager::clear()
+DictionaryManager::DictionaryManager()
 {
-  p->entries.clear();
-}
-
-void TexRefManager::resolveReferences() const
-{
-  if (p->entries.empty()) return; // nothing to resolve
-
-  QStrList &texrefDataList = Config_getList(LATEX_AUX_FILES);
-  const char *texrefdata = texrefDataList.first();
-  int i = 0;
-  while (texrefdata)
+  QStrList &dictFileNameList = Config_getList(DICTIONARY_FILES);
+  QStrListIterator li(dictFileNameList);
+  const char *dictdata = 0;
+  for (li.toFirst() ; (dictdata = li.current()) ; ++li)
   {
-    QCString texrefFile = texrefdata;
-    if (!texrefFile.isEmpty() && texrefFile.right(4)!=".aux") texrefFile+=".aux";
-    QFileInfo fi(texrefFile);
+    QCString dictFile = dictdata;
+    QFileInfo fi(dictFile);
     if (fi.exists())
     {
-      if (!texrefFile.isEmpty())
+      if (!dictFile.isEmpty())
       {
-        ++i;
-        printf("Reading file %s\n", texrefdata);
+        printf("Reading file %s\n", dictdata);
         QFile f;
-        f.setName(texrefFile);
+        f.setName(dictFile);
         if (!f.open(IO_ReadOnly))
         {
-          err("could not open file %s for reading\n",texrefFile.data());
+          err("could not open file %s for reading\n",dictFile.data());
         }
         QCString input(fi.size()+1);
         f.readBlock(input.rawData(),fi.size());
@@ -495,32 +446,33 @@ void TexRefManager::resolveReferences() const
           //printf("pos=%d s=%d line=[%s]\n",pos,s,line.data());
           pos=s+1;
 
-          if (line.find("\\newlabel")!=0)
+          int j=line.find(" ");
+          if (j!=-1)
           {
-            continue;
-          }
-          printf("handling: %s\n",line.data());
-          int j=line.find("}{");
-          int k=line.find("}",j+1);
-          if (j!=-1 && k!=-1)
-          {
-            QCString label = line.mid(10,j-10);
-            QCString text = line.mid(j+3,k-(j+3));
-            auto it = p->entries.find(label.data());
-            printf("label='%s' number='%s'\n",label.data(),text.data());
-            if (it!=p->entries.end())
+            QCString label = line.left(j);
+            QCString text = line.mid(j+1);
+            auto it = m_entries.find(label);
+            if (it==m_entries.end())
             {
-              it->second->setText(text);
+              printf("added key='%s', value='%s'\n",label.data(),text.data());
+              m_entries[label] = text;
             }
+            else
+            {
+              printf("skipping duplicate key='%s', value='%s', old value='%s'\n",label.data(),text.data(),it->second.data());
+            }
+          }
+          else
+          {
+            printf("Skipping malformed key-value pair '%s'.\n",line.data());
           }
         }
       }
     }
     else
     {
-      err("file %s not found!\n",texrefFile.data());
+      err("file %s not found!\n",dictFile.data());
     }
-    texrefdata = texrefDataList.next();
   }
 }
 
