@@ -143,7 +143,7 @@ enum CommandType
   CMD_DOCBOOKINCLUDE= 113,
   CMD_MANINCLUDE   = 114,
   CMD_XMLINCLUDE   = 115,
-  CMD_TEXREF       = 116
+  CMD_DICTVAL      = 116
 };
 
 enum HtmlTagType

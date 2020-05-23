@@ -2617,7 +2617,7 @@ DocDictVal::DocDictVal(DocNode *parent,const QCString &target,const QCString &) 
     m_label        = target;
     m_text         = *val;
     m_ref          = "";
-    //printf("TEXREF ==> m_label=%s,m_text=%s,m_ref=%s\n",
+    //printf("DICTVAL ==> m_label=%s,m_text=%s,m_ref=%s\n",
     //    m_label.data(),m_text.data(),m_ref.data());
     return;
   }
@@ -5889,7 +5889,7 @@ int DocPara::handleCommand(const QCString &cmdName, const int tok)
     case CMD_EMOJI:
       handleEmoji();
       break;
-    case CMD_TEXREF:
+    case CMD_DICTVAL:
       handleTexRef();
       break;
     case CMD_REF: // fall through
