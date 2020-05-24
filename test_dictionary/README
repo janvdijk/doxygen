@@ -2,27 +2,30 @@ INTRODUCTION AND OVERVIEW:
 
 * Suppose that you are developing a code and external documents
   simultaneously, and that in code comments you wish to refer
-  to content from the document that will continuously change
-  (equations, sections, chapters, ...).
+  to content from the documents that will continuously change
+  (equation, section and chapter numbers, ...), just like the
+  code itself.
 
 * I solved this by introducing a new Doxygen command \dictval,
   which requires a key as argument. Doxygen will replace occurrences
   of '\dictval <key>' with the value that is found for that key in
   external dictionary files, specified with the DICTIONARY_FILES
-  configuration option. Every non-empty line of such file is used
-  as key, the remainder of the line as value.
+  configuration option. The first word of every non-empty line of such
+  file is used as key, the remainder of that line as value.
 
-* The dictionary files can be updated by the user (not docygen)
-  whenever the external documents have changed. I myself used this
-  for my C++ project with LaTeX documentation. I will work out an
-  example in more detail.
+* The dictionary files must be updated by the user (not Doxygen)
+  whenever the external documents have changed. That makes this
+  quite flexible and the number of changes that are required in the
+  Doxygen code are very small.
+  I myself used this for my C++ project with LaTeX documentation.
+  I will work out an example in more detail.
 
 
 EXAMPLE: Referring to LaTeX equation and section numbers from C++ comments.
 
  * Non-Doxygen parts:
 
-In this case, the documentation is in a file math_overview.tex,
+In this example, the documentation is in a file math_overview.tex,
 which is accompanied by a file math_overview.bib. The LaTeX
 documentation is built by running pdflatex and bibtex, as in
 
@@ -45,6 +48,8 @@ For our present example, file math_overview.dict will look like:
   eqn:bar 2
   sec:euler 2
   eqn:euler 3
+
+This file math_overview.dict is the only file that is seen by Doxygen.
 
  * Doxygen parts:
 
