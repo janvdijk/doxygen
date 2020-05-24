@@ -53,7 +53,7 @@ This file math_overview.dict is the only file that is seen by Doxygen.
 
  * Doxygen parts:
 
-Now we run docygen, using the configuration file polar.doxy. That has
+Now we run Doxygen, using the configuration file polar.doxy. That has
 two lines
 
   CITE_BIB_FILES         = math_overview
