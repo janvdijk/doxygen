@@ -1234,7 +1234,7 @@ class DocPara : public CompAccept<DocPara>
     void handleLink(const QCString &cmdName,bool isJavaLink);
     void handleCite();
     void handleEmoji();
-    void handleTexRef();
+    void handleDictVal();
     void handleRef(const QCString &cmdName);
     void handleSection(const QCString &cmdName);
     void handleInheritDoc();

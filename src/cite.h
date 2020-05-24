@@ -76,10 +76,12 @@ class CitationManager
 };
 
 /**
- * @brief TexRef database access class.
- * @details This class provides access do the database of external references
- * that are retrieved from the LaTeX .aux files that are specified in the
- * DICTIONARY_FILES configuration option.
+ * @brief Dictionary class, used by dictval commands.
+ * @details This class implements a dictionary that is populated with
+ * the contents of the files that are listed in the DICTIONARY_FILES
+ * configuration option. There is only one instance of this class,
+ * which can be obtained with the static member instance. The object
+ * is created when instance is called for the first time.
  */
 class DictionaryManager
 {

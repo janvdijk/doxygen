@@ -458,7 +458,7 @@ REFWORD_NOCV   {FILEMASK}|{LABELID}|{REFWORD2_NOCV}|{REFWORD3}|{REFWORD4_NOCV}
 %x St_Pattern
 %x St_Link
 %x St_Cite
-%x St_TexRef
+%x St_DictVal
 %x St_Ref
 %x St_Ref2
 %x St_IntRef
@@ -1047,7 +1047,7 @@ REFWORD_NOCV   {FILEMASK}|{LABELID}|{REFWORD2_NOCV}|{REFWORD3}|{REFWORD4_NOCV}
                          }
 			 return TK_WORD;
   		       }
-<St_TexRef>{DICTVALID}  { // label to refer to
+<St_DictVal>{DICTVALID}  { // label to refer to
                         g_token->name=yytext;
                         return TK_WORD;
                        }
@@ -1548,9 +1548,9 @@ void doctokenizerYYsetStateCite()
   BEGIN(St_Cite);
 }
 
-void doctokenizerYYsetStateTexRef()
+void doctokenizerYYsetStateDictVal()
 {
-  BEGIN(St_TexRef);
+  BEGIN(St_DictVal);
 }
 
 void doctokenizerYYsetStateRef()

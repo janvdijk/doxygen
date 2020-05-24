@@ -4937,7 +4937,7 @@ void DocPara::handleEmoji()
   doctokenizerYYsetStatePara();
 }
 
-void DocPara::handleTexRef()
+void DocPara::handleDictVal()
 {
   // get the argument of the dictval command.
   int tok=doctokenizerYYlex();
@@ -4947,7 +4947,7 @@ void DocPara::handleTexRef()
         qPrint("dictval"));
     return;
   }
-  doctokenizerYYsetStateTexRef();
+  doctokenizerYYsetStateDictVal();
   tok=doctokenizerYYlex();
   if (tok==0)
   {
@@ -5889,7 +5889,7 @@ int DocPara::handleCommand(const QCString &cmdName, const int tok)
       handleEmoji();
       break;
     case CMD_DICTVAL:
-      handleTexRef();
+      handleDictVal();
       break;
     case CMD_REF: // fall through
     case CMD_SUBPAGE:
