@@ -84,6 +84,14 @@ TO TEST THE EXMAPLE ABOVE:
 
   1. build and configure this version of doxygen
   2. cd test_dictionary
-  2. pdflatex math_overview && bibtex math_overview && pdflatex math_overview && pdflatex math_overview
   3. /path/to/doxygen/build_dir/doxygen polar.doxy
   4. firefox html/classPolarComplex.html and see the Note on that page
+
+The file math_overview.dict has been placed in the test dir for convenience.
+While this is not really Doxygen's business: If you want  was create it
+yourself, do
+
+  5. cd test_dictionary
+  6. pdflatex math_overview && bibtex math_overview && pdflatex math_overview && pdflatex math_overview
+  7. source parse_aux.sh *.aux >  math_overview.dict
+
